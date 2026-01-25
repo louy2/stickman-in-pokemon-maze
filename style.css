@@ -164,16 +164,15 @@ body {
     width: 90%;
 }
 
-#dialog-portrait {
+#dialog-portrait-canvas {
     width: 80px;
     height: 80px;
     background: #4a4a6a;
-    border-radius: 50%;
+    border-radius: 10px;
     margin: 0 auto 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 40px;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
 }
 
 #dialog-name {
@@ -228,9 +227,15 @@ body {
     margin-bottom: 15px;
 }
 
-#enemy-sprite {
-    font-size: 60px;
-    margin-bottom: 10px;
+#enemy-sprite-canvas {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 10px;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
 }
 
 #enemy-name {

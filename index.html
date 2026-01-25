@@ -55,7 +55,7 @@
     <!-- 对话框 -->
     <div id="dialog-overlay" class="hidden">
         <div id="dialog-box">
-            <div id="dialog-portrait"></div>
+            <canvas id="dialog-portrait-canvas" width="80" height="80"></canvas>
             <div id="dialog-content">
                 <div id="dialog-name"></div>
                 <div id="dialog-text"></div>
@@ -68,7 +68,7 @@
     <div id="battle-overlay" class="hidden">
         <div id="battle-box">
             <div id="battle-enemy">
-                <div id="enemy-sprite"></div>
+                <canvas id="enemy-sprite-canvas" width="96" height="96"></canvas>
                 <div id="enemy-name"></div>
                 <div id="enemy-hp-bar"><div id="enemy-hp-fill"></div></div>
             </div>
@@ -101,6 +101,7 @@
     </div>
 
     <script src="data.js"></script>
+    <script src="sprites.js"></script>
     <script src="game.js"></script>
 </body>
 </html>

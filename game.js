@@ -425,8 +425,16 @@ class Game {
         const battleOverlay = document.getElementById('battle-overlay');
         battleOverlay.classList.remove('hidden');
 
-        // 显示敌人信息
-        document.getElementById('enemy-sprite').textContent = enemy.emoji;
+        // 显示敌人像素精灵
+        const spriteCanvas = document.getElementById('enemy-sprite-canvas');
+        const spriteCtx = spriteCanvas.getContext('2d');
+        spriteCtx.clearRect(0, 0, 96, 96);
+
+        const spriteData = POKEMON_SPRITES[enemy.id];
+        if (spriteData) {
+            drawSprite(spriteCtx, spriteData, 0, 0, 96);
+        }
+
         document.getElementById('enemy-name').textContent = `${enemy.name} Lv.${this.state.floor + Math.floor(enemy.exp / 30)}`;
         this.updateEnemyHpBar();
 
@@ -688,7 +696,16 @@ class Game {
         const dialogOverlay = document.getElementById('dialog-overlay');
         dialogOverlay.classList.remove('hidden');
 
-        document.getElementById('dialog-portrait').textContent = healer.emoji;
+        // 显示像素精灵
+        const portraitCanvas = document.getElementById('dialog-portrait-canvas');
+        const portraitCtx = portraitCanvas.getContext('2d');
+        portraitCtx.clearRect(0, 0, 80, 80);
+
+        const spriteData = POKEMON_SPRITES[healer.id];
+        if (spriteData) {
+            drawSprite(portraitCtx, spriteData, 0, 0, 80);
+        }
+
         document.getElementById('dialog-name').textContent = healer.name;
 
         const dialogue = healer.dialogues[Math.floor(Math.random() * healer.dialogues.length)];
@@ -1227,24 +1244,36 @@ class Game {
 
             // 背景圆圈表示类型
             ctx.beginPath();
-            ctx.arc(ex + tileSize / 2, ey + tileSize / 2, tileSize / 2 - 4, 0, Math.PI * 2);
+            ctx.arc(ex + tileSize / 2, ey + tileSize / 2, tileSize / 2 - 2, 0, Math.PI * 2);
 
             if (entity.type === 'shop') {
-                ctx.fillStyle = 'rgba(107, 203, 119, 0.3)';
+                ctx.fillStyle = 'rgba(107, 203, 119, 0.4)';
             } else if (entity.type === 'healer') {
-                ctx.fillStyle = 'rgba(255, 107, 157, 0.3)';
+                ctx.fillStyle = 'rgba(255, 107, 157, 0.4)';
             } else if (entity.behavior === 'runner') {
-                ctx.fillStyle = 'rgba(255, 217, 61, 0.3)';
+                ctx.fillStyle = 'rgba(255, 217, 61, 0.4)';
             } else {
-                ctx.fillStyle = 'rgba(255, 107, 107, 0.3)';
+                ctx.fillStyle = 'rgba(255, 107, 107, 0.4)';
             }
             ctx.fill();
 
-            // 绘制emoji
-            ctx.font = `${tileSize - 10}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(entity.emoji, ex + tileSize / 2, ey + tileSize / 2);
+            // 绘制像素精灵
+            const spriteData = POKEMON_SPRITES[entity.id];
+            if (spriteData) {
+                // 使用缓存的精灵
+                const cachedSprite = getCachedSprite(entity.id, tileSize - 4);
+                if (cachedSprite) {
+                    ctx.drawImage(cachedSprite, ex + 2, ey + 2);
+                } else {
+                    drawSprite(ctx, spriteData, ex + 2, ey + 2, tileSize - 4);
+                }
+            } else {
+                // 回退到emoji
+                ctx.font = `${tileSize - 10}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(entity.emoji, ex + tileSize / 2, ey + tileSize / 2);
+            }
         }
 
         // 绘制玩家（火柴人）
