@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>火柴人宝可梦不思议迷宫</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="top-bar">
+            <div id="player-stats">
+                <span id="hp-display">HP: 100/100</span>
+                <span id="level-display">Lv: 1</span>
+                <span id="exp-display">EXP: 0/100</span>
+                <span id="gold-display">金币: 0</span>
+                <span id="floor-display">楼层: 1F</span>
+            </div>
+        </div>
+
+        <div id="main-area">
+            <canvas id="game-canvas"></canvas>
+
+            <div id="side-panel">
+                <div id="minimap-container">
+                    <h3>小地图</h3>
+                    <canvas id="minimap"></canvas>
+                </div>
+
+                <div id="inventory-panel">
+                    <h3>背包 <span id="inventory-count">0/20</span></h3>
+                    <div id="inventory-list"></div>
+                </div>
+
+                <div id="equipment-panel">
+                    <h3>装备</h3>
+                    <div id="equipment-slots">
+                        <div class="equip-slot" data-slot="weapon">武器: 无</div>
+                        <div class="equip-slot" data-slot="armor">护甲: 无</div>
+                        <div class="equip-slot" data-slot="accessory">饰品: 无</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="message-log">
+            <div id="messages"></div>
+        </div>
+
+        <div id="controls-hint">
+            方向键/WASD: 移动 | Z: 攻击 | I: 背包 | Space: 拾取/交互 | Q: 使用道具
+        </div>
+    </div>
+
+    <!-- 对话框 -->
+    <div id="dialog-overlay" class="hidden">
+        <div id="dialog-box">
+            <div id="dialog-portrait"></div>
+            <div id="dialog-content">
+                <div id="dialog-name"></div>
+                <div id="dialog-text"></div>
+            </div>
+            <div id="dialog-options"></div>
+        </div>
+    </div>
+
+    <!-- 战斗界面 -->
+    <div id="battle-overlay" class="hidden">
+        <div id="battle-box">
+            <div id="battle-enemy">
+                <div id="enemy-sprite"></div>
+                <div id="enemy-name"></div>
+                <div id="enemy-hp-bar"><div id="enemy-hp-fill"></div></div>
+            </div>
+            <div id="battle-log"></div>
+            <div id="battle-actions">
+                <button id="btn-attack">攻击</button>
+                <button id="btn-skill">技能</button>
+                <button id="btn-item">道具</button>
+                <button id="btn-flee">逃跑</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 商店界面 -->
+    <div id="shop-overlay" class="hidden">
+        <div id="shop-box">
+            <h2 id="shop-title">商店</h2>
+            <div id="shop-items"></div>
+            <button id="shop-close">离开商店</button>
+        </div>
+    </div>
+
+    <!-- 游戏结束 -->
+    <div id="gameover-overlay" class="hidden">
+        <div id="gameover-box">
+            <h1>游戏结束</h1>
+            <p id="gameover-text"></p>
+            <button id="restart-btn">重新开始</button>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
