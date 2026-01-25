@@ -15,6 +15,17 @@
                 <span id="exp-display">EXP: 0/100</span>
                 <span id="gold-display">金币: 0</span>
                 <span id="floor-display">楼层: 1F</span>
+                <span id="chapter-display">第一章</span>
+            </div>
+            <div id="status-bars">
+                <div id="pollution-container" class="hidden">
+                    <span>污染:</span>
+                    <div id="pollution-bar"><div id="pollution-fill"></div></div>
+                    <span id="pollution-value">0/100</span>
+                </div>
+                <div id="status-effects">
+                    <span id="bleeding-status" class="status-icon hidden">🩸流血</span>
+                </div>
             </div>
         </div>
 
@@ -88,6 +99,14 @@
             <h2 id="shop-title">商店</h2>
             <div id="shop-items"></div>
             <button id="shop-close">离开商店</button>
+        </div>
+    </div>
+
+    <!-- 剧情界面 -->
+    <div id="story-overlay" class="hidden">
+        <div id="story-box">
+            <div id="story-text"></div>
+            <button id="story-next">继续</button>
         </div>
     </div>
 

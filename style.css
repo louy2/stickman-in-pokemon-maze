@@ -44,6 +44,61 @@ body {
 #exp-display { color: #6bcb77; }
 #gold-display { color: #ffe66d; }
 #floor-display { color: #4ecdc4; }
+#chapter-display { color: #ff9ff3; }
+
+/* 状态栏 */
+#status-bars {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    align-items: center;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+#pollution-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #9b59b6;
+}
+
+#pollution-bar {
+    width: 100px;
+    height: 12px;
+    background: #333;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+#pollution-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #8e44ad 0%, #9b59b6 50%, #e74c3c 100%);
+    transition: width 0.3s;
+}
+
+#pollution-value {
+    font-size: 12px;
+}
+
+#status-effects {
+    display: flex;
+    gap: 10px;
+}
+
+.status-icon {
+    background: rgba(255, 0, 0, 0.3);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
 
 #main-area {
     display: flex;
@@ -369,6 +424,53 @@ body {
     color: #fff;
     cursor: pointer;
     font-size: 14px;
+}
+
+/* Story Overlay */
+#story-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+#story-box {
+    background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+    border: 3px solid #9b59b6;
+    border-radius: 15px;
+    padding: 40px;
+    max-width: 600px;
+    width: 90%;
+    text-align: center;
+}
+
+#story-text {
+    font-size: 18px;
+    line-height: 2;
+    margin-bottom: 30px;
+    color: #e0e0e0;
+    min-height: 100px;
+}
+
+#story-next {
+    background: linear-gradient(180deg, #9b59b6 0%, #8e44ad 100%);
+    border: none;
+    padding: 12px 40px;
+    border-radius: 25px;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+#story-next:hover {
+    transform: scale(1.05);
 }
 
 /* Game Over */
