@@ -619,13 +619,146 @@ const CHAPTERS = {
     },
     2: {
         name: "第二章：污染荒野",
-        description: "地面世界已被污染，你必须找到净化之源...",
-        floors: 100,
+        description: "地面世界已被污染，通过传送门探索各个区域，找到净化之源...",
+        floors: 1,  // Open world - single persistent map
         endStory: [
             "恭喜你净化了荒野！",
             "但这只是开始..."
         ],
-        mapType: "surface"
+        mapType: "openWorld"
+    }
+};
+
+// ==================== 开放世界区域数据 ====================
+
+const OPEN_WORLD_AREAS = {
+    central: {
+        id: "central",
+        name: "中央废墟",
+        description: "曾经繁华的城市中心，现在只剩下断壁残垣...",
+        color: "#3a3a5a",
+        floorColor: "#2a2a4a",
+        enemies: ["zombie", "polluted"],
+        bossId: null
+    },
+    forest: {
+        id: "forest",
+        name: "污染森林",
+        description: "被毒雾笼罩的森林，空气中弥漫着腐烂的气息...",
+        color: "#2a4a2a",
+        floorColor: "#1a3a1a",
+        enemies: ["polluted"],
+        bossId: 501  // 僵尸之王
+    },
+    swamp: {
+        id: "swamp",
+        name: "毒沼地带",
+        description: "剧毒的沼泽，污染值会持续上升...",
+        color: "#4a3a5a",
+        floorColor: "#3a2a4a",
+        enemies: ["zombie", "polluted"],
+        bossId: 502,  // 污染班吉拉
+        hazard: { type: "pollution", value: 2 }  // Per-turn pollution damage
+    },
+    ruins: {
+        id: "ruins",
+        name: "古代遗迹",
+        description: "神秘的远古建筑，据说藏有净化力量的秘密...",
+        color: "#5a4a3a",
+        floorColor: "#4a3a2a",
+        enemies: ["zombie"],
+        bossId: 503  // 变异暴鲤龙
+    },
+    sanctuary: {
+        id: "sanctuary",
+        name: "净化圣所",
+        description: "最后的希望之地，堕落的神明在此等待...",
+        color: "#2a3a5a",
+        floorColor: "#1a2a4a",
+        enemies: ["polluted"],
+        bossId: 504,  // 堕落阿尔宙斯
+        isFinalArea: true
+    }
+};
+
+// ==================== 传送门数据 ====================
+
+const PORTAL_DATA = {
+    // 从中央废墟出发的传送门
+    central_to_forest: {
+        id: "central_to_forest",
+        name: "森林传送门",
+        emoji: "🌀",
+        color: "#4ade80",
+        fromArea: "central",
+        toArea: "forest",
+        description: "通往污染森林的传送门"
+    },
+    central_to_swamp: {
+        id: "central_to_swamp",
+        name: "沼泽传送门",
+        emoji: "🌀",
+        color: "#a855f7",
+        fromArea: "central",
+        toArea: "swamp",
+        description: "通往毒沼地带的传送门"
+    },
+    central_to_ruins: {
+        id: "central_to_ruins",
+        name: "遗迹传送门",
+        emoji: "🌀",
+        color: "#f59e0b",
+        fromArea: "central",
+        toArea: "ruins",
+        description: "通往古代遗迹的传送门"
+    },
+    // 返回传送门
+    forest_to_central: {
+        id: "forest_to_central",
+        name: "返回传送门",
+        emoji: "🌀",
+        color: "#6b7280",
+        fromArea: "forest",
+        toArea: "central",
+        description: "返回中央废墟"
+    },
+    swamp_to_central: {
+        id: "swamp_to_central",
+        name: "返回传送门",
+        emoji: "🌀",
+        color: "#6b7280",
+        fromArea: "swamp",
+        toArea: "central",
+        description: "返回中央废墟"
+    },
+    ruins_to_central: {
+        id: "ruins_to_central",
+        name: "返回传送门",
+        emoji: "🌀",
+        color: "#6b7280",
+        fromArea: "ruins",
+        toArea: "central",
+        description: "返回中央废墟"
+    },
+    // 净化圣所传送门 (需要击败其他BOSS解锁)
+    central_to_sanctuary: {
+        id: "central_to_sanctuary",
+        name: "圣所传送门",
+        emoji: "✨",
+        color: "#ec4899",
+        fromArea: "central",
+        toArea: "sanctuary",
+        description: "通往净化圣所的传送门（需要击败3个区域BOSS）",
+        requiresBosses: [501, 502, 503]  // 需要先击败这些BOSS
+    },
+    sanctuary_to_central: {
+        id: "sanctuary_to_central",
+        name: "返回传送门",
+        emoji: "🌀",
+        color: "#6b7280",
+        fromArea: "sanctuary",
+        toArea: "central",
+        description: "返回中央废墟"
     }
 };
 
@@ -1087,6 +1220,8 @@ if (typeof module !== 'undefined' && module.exports) {
         CHAPTER2_ITEMS,
         SURFACE_HEALERS,
         BOSS_DATA,
+        OPEN_WORLD_AREAS,
+        PORTAL_DATA,
         getBossForFloor,
         generateRandomDialogue
     };

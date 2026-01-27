@@ -53,6 +53,13 @@ class Game {
         this.stairsPos = null;
         this.explored = [];
 
+        // 开放世界数据
+        this.portals = [];
+        this.currentArea = "central";
+        this.defeatedBosses = [];
+        this.areaExplored = {};  // Track explored areas
+        this.worldPollution = 100;  // Global pollution level (0-100, start at max)
+
         // 当前战斗/交互对象
         this.currentEnemy = null;
         this.currentNPC = null;
@@ -202,7 +209,10 @@ class Game {
         }
 
         // 根据章节生成不同地图
-        if (chapter.mapType === 'surface') {
+        if (chapter.mapType === 'openWorld') {
+            this.generateOpenWorldMap();
+            return;  // Open world has its own placement logic
+        } else if (chapter.mapType === 'surface') {
             this.generateSurfaceMap();
         } else {
             // 使用递归回溯算法生成迷宫
@@ -292,6 +302,520 @@ class Game {
                 }
             }
         }
+    }
+
+    generateOpenWorldMap() {
+        const area = OPEN_WORLD_AREAS[this.currentArea];
+        this.portals = [];
+        this.entities = [];
+        this.items = [];
+
+        // Reset explored for new area (but keep tracking which areas visited)
+        this.explored = [];
+        for (let y = 0; y < this.config.mazeHeight; y++) {
+            this.explored[y] = [];
+            for (let x = 0; x < this.config.mazeWidth; x++) {
+                this.explored[y][x] = false;
+            }
+        }
+
+        // Mark this area as visited
+        if (!this.areaExplored[this.currentArea]) {
+            this.areaExplored[this.currentArea] = true;
+        }
+
+        // Generate area-specific terrain
+        this.generateAreaTerrain(area);
+
+        // Place player at spawn point (center for first visit, or near portal otherwise)
+        if (!this.areaExplored[this.currentArea + '_visited']) {
+            this.player.x = Math.floor(this.config.mazeWidth / 2);
+            this.player.y = Math.floor(this.config.mazeHeight / 2);
+            this.areaExplored[this.currentArea + '_visited'] = true;
+        }
+        this.maze[this.player.y][this.player.x] = 0;
+
+        // Place portals
+        this.placePortals();
+
+        // Place enemies based on area
+        this.spawnOpenWorldEnemies(area);
+
+        // Place items
+        this.spawnItems();
+
+        // Place area boss if not defeated
+        if (area.bossId && !this.defeatedBosses.includes(area.bossId)) {
+            this.placeAreaBoss(area);
+        }
+
+        // Place healer
+        const healer = SURFACE_HEALERS[Math.floor(Math.random() * SURFACE_HEALERS.length)];
+        this.placePokemon(healer);
+
+        // Place shop
+        if (Math.random() < 0.7) {
+            const shopPokemon = POKEMON_DATA.filter(p => p.type === 'shop');
+            this.placePokemon(shopPokemon[Math.floor(Math.random() * shopPokemon.length)]);
+        }
+
+        // Update exploration
+        this.updateExplored();
+
+        // Reset buff
+        this.player.buffs = { attack: 0, defense: 0 };
+
+        // Show area message
+        this.addMessage(`=== ${area.name} ===`, "system");
+        this.addMessage(area.description, "system");
+
+        // Show world pollution status
+        this.addMessage(`世界污染度: ${this.worldPollution}%`, "system");
+
+        if (area.hazard) {
+            this.addMessage(`⚠️ 警告: 此区域有环境危害！`, "system");
+        }
+
+        this.updatePlayerStats();
+    }
+
+    generateAreaTerrain(area) {
+        // Initialize maze with walls
+        for (let y = 0; y < this.config.mazeHeight; y++) {
+            this.maze[y] = [];
+            for (let x = 0; x < this.config.mazeWidth; x++) {
+                this.maze[y][x] = 1;
+            }
+        }
+
+        // Different terrain generation based on area
+        switch (area.id) {
+            case 'central':
+                this.generateCityTerrain();
+                break;
+            case 'forest':
+                this.generateForestTerrain();
+                break;
+            case 'swamp':
+                this.generateSwampTerrain();
+                break;
+            case 'ruins':
+                this.generateRuinsTerrain();
+                break;
+            case 'sanctuary':
+                this.generateSanctuaryTerrain();
+                break;
+            default:
+                this.generateOpenTerrain();
+        }
+    }
+
+    generateCityTerrain() {
+        // City ruins: grid-like streets with building blocks
+        // Create main streets (cross pattern)
+        const midX = Math.floor(this.config.mazeWidth / 2);
+        const midY = Math.floor(this.config.mazeHeight / 2);
+
+        // Horizontal main street
+        for (let x = 1; x < this.config.mazeWidth - 1; x++) {
+            this.maze[midY][x] = 0;
+            this.maze[midY - 1][x] = 0;
+            this.maze[midY + 1][x] = 0;
+        }
+
+        // Vertical main street
+        for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+            this.maze[y][midX] = 0;
+            this.maze[y][midX - 1] = 0;
+            this.maze[y][midX + 1] = 0;
+        }
+
+        // Create secondary streets
+        for (let y = 3; y < this.config.mazeHeight - 3; y += 4) {
+            for (let x = 1; x < this.config.mazeWidth - 1; x++) {
+                if (Math.random() < 0.8) this.maze[y][x] = 0;
+            }
+        }
+        for (let x = 3; x < this.config.mazeWidth - 3; x += 5) {
+            for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+                if (Math.random() < 0.8) this.maze[y][x] = 0;
+            }
+        }
+
+        // Add some random rubble/openings
+        for (let i = 0; i < 30; i++) {
+            const x = 2 + Math.floor(Math.random() * (this.config.mazeWidth - 4));
+            const y = 2 + Math.floor(Math.random() * (this.config.mazeHeight - 4));
+            this.maze[y][x] = 0;
+        }
+    }
+
+    generateForestTerrain() {
+        // Forest: mostly open with scattered tree clusters
+        for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+            for (let x = 1; x < this.config.mazeWidth - 1; x++) {
+                if (Math.random() < 0.75) {
+                    this.maze[y][x] = 0;
+                }
+            }
+        }
+
+        // Create dense tree clusters
+        for (let i = 0; i < 5; i++) {
+            const cx = 3 + Math.floor(Math.random() * (this.config.mazeWidth - 6));
+            const cy = 3 + Math.floor(Math.random() * (this.config.mazeHeight - 6));
+            const size = 2 + Math.floor(Math.random() * 2);
+
+            for (let dy = -size; dy <= size; dy++) {
+                for (let dx = -size; dx <= size; dx++) {
+                    const x = cx + dx;
+                    const y = cy + dy;
+                    if (x > 0 && x < this.config.mazeWidth - 1 &&
+                        y > 0 && y < this.config.mazeHeight - 1) {
+                        if (Math.random() < 0.6) {
+                            this.maze[y][x] = 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Ensure paths exist
+        this.ensurePathConnectivity();
+    }
+
+    generateSwampTerrain() {
+        // Swamp: winding paths through toxic pools
+        for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+            for (let x = 1; x < this.config.mazeWidth - 1; x++) {
+                // Fewer walkable areas
+                if (Math.random() < 0.55) {
+                    this.maze[y][x] = 0;
+                }
+            }
+        }
+
+        // Create winding paths
+        let px = 2, py = 2;
+        for (let i = 0; i < 50; i++) {
+            this.maze[py][px] = 0;
+            const dir = Math.floor(Math.random() * 4);
+            switch (dir) {
+                case 0: if (py > 2) py--; break;
+                case 1: if (py < this.config.mazeHeight - 3) py++; break;
+                case 2: if (px > 2) px--; break;
+                case 3: if (px < this.config.mazeWidth - 3) px++; break;
+            }
+        }
+
+        this.ensurePathConnectivity();
+    }
+
+    generateRuinsTerrain() {
+        // Ancient ruins: structured rooms connected by corridors
+        for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+            for (let x = 1; x < this.config.mazeWidth - 1; x++) {
+                this.maze[y][x] = 1;
+            }
+        }
+
+        // Create rooms
+        const rooms = [];
+        for (let i = 0; i < 6; i++) {
+            const roomW = 3 + Math.floor(Math.random() * 3);
+            const roomH = 3 + Math.floor(Math.random() * 3);
+            const roomX = 2 + Math.floor(Math.random() * (this.config.mazeWidth - roomW - 4));
+            const roomY = 2 + Math.floor(Math.random() * (this.config.mazeHeight - roomH - 4));
+
+            for (let y = roomY; y < roomY + roomH; y++) {
+                for (let x = roomX; x < roomX + roomW; x++) {
+                    if (y < this.config.mazeHeight - 1 && x < this.config.mazeWidth - 1) {
+                        this.maze[y][x] = 0;
+                    }
+                }
+            }
+            rooms.push({ x: roomX + Math.floor(roomW / 2), y: roomY + Math.floor(roomH / 2) });
+        }
+
+        // Connect rooms with corridors
+        for (let i = 0; i < rooms.length - 1; i++) {
+            const from = rooms[i];
+            const to = rooms[i + 1];
+            this.carveCorridor(from.x, from.y, to.x, to.y);
+        }
+    }
+
+    generateSanctuaryTerrain() {
+        // Sanctuary: grand open area with central chamber
+        for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+            for (let x = 1; x < this.config.mazeWidth - 1; x++) {
+                this.maze[y][x] = 0;
+            }
+        }
+
+        // Create pillars around the edges
+        for (let x = 3; x < this.config.mazeWidth - 3; x += 3) {
+            this.maze[2][x] = 1;
+            this.maze[this.config.mazeHeight - 3][x] = 1;
+        }
+        for (let y = 3; y < this.config.mazeHeight - 3; y += 3) {
+            this.maze[y][2] = 1;
+            this.maze[y][this.config.mazeWidth - 3] = 1;
+        }
+
+        // Central altar platform
+        const midX = Math.floor(this.config.mazeWidth / 2);
+        const midY = Math.floor(this.config.mazeHeight / 2);
+        for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+                if (Math.abs(dx) === 2 || Math.abs(dy) === 2) {
+                    if (!(dx === 0 || dy === 0)) {
+                        this.maze[midY + dy][midX + dx] = 1;
+                    }
+                }
+            }
+        }
+    }
+
+    generateOpenTerrain() {
+        // Generic open terrain
+        for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+            for (let x = 1; x < this.config.mazeWidth - 1; x++) {
+                if (Math.random() < 0.7) {
+                    this.maze[y][x] = 0;
+                }
+            }
+        }
+        this.ensurePathConnectivity();
+    }
+
+    carveCorridor(x1, y1, x2, y2) {
+        // Carve L-shaped corridor
+        let x = x1, y = y1;
+
+        // Horizontal first
+        while (x !== x2) {
+            if (x >= 1 && x < this.config.mazeWidth - 1) {
+                this.maze[y][x] = 0;
+            }
+            x += x < x2 ? 1 : -1;
+        }
+        // Then vertical
+        while (y !== y2) {
+            if (y >= 1 && y < this.config.mazeHeight - 1) {
+                this.maze[y][x] = 0;
+            }
+            y += y < y2 ? 1 : -1;
+        }
+    }
+
+    ensurePathConnectivity() {
+        // Simple flood fill to ensure connectivity
+        const midX = Math.floor(this.config.mazeWidth / 2);
+        const midY = Math.floor(this.config.mazeHeight / 2);
+
+        // Make sure center is walkable
+        this.maze[midY][midX] = 0;
+
+        // Create paths to edges
+        for (let x = 1; x < this.config.mazeWidth - 1; x++) {
+            this.maze[midY][x] = 0;
+        }
+        for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+            this.maze[y][midX] = 0;
+        }
+    }
+
+    placePortals() {
+        // Get portals for current area
+        const areaPortals = Object.values(PORTAL_DATA).filter(p => p.fromArea === this.currentArea);
+
+        for (const portalData of areaPortals) {
+            // Check if portal requires bosses to be defeated
+            if (portalData.requiresBosses) {
+                const allDefeated = portalData.requiresBosses.every(bossId =>
+                    this.defeatedBosses.includes(bossId));
+                if (!allDefeated) continue;  // Skip this portal
+            }
+
+            this.placePortal(portalData);
+        }
+    }
+
+    placePortal(portalData) {
+        let placed = false;
+        let attempts = 0;
+
+        while (!placed && attempts < 100) {
+            // Place portals near edges for return, or spread out for destinations
+            let x, y;
+            if (portalData.toArea === 'central') {
+                // Return portals near spawn
+                x = 2 + Math.floor(Math.random() * 3);
+                y = 2 + Math.floor(Math.random() * 3);
+            } else {
+                // Destination portals at edges
+                const edge = Math.floor(Math.random() * 4);
+                switch (edge) {
+                    case 0: // Top
+                        x = 3 + Math.floor(Math.random() * (this.config.mazeWidth - 6));
+                        y = 2;
+                        break;
+                    case 1: // Bottom
+                        x = 3 + Math.floor(Math.random() * (this.config.mazeWidth - 6));
+                        y = this.config.mazeHeight - 3;
+                        break;
+                    case 2: // Left
+                        x = 2;
+                        y = 3 + Math.floor(Math.random() * (this.config.mazeHeight - 6));
+                        break;
+                    case 3: // Right
+                        x = this.config.mazeWidth - 3;
+                        y = 3 + Math.floor(Math.random() * (this.config.mazeHeight - 6));
+                        break;
+                }
+            }
+
+            // Ensure position is valid
+            if (this.maze[y][x] === 0 &&
+                !this.getEntityAt(x, y) &&
+                !this.getPortalAt(x, y) &&
+                (x !== this.player.x || y !== this.player.y)) {
+
+                const portal = {
+                    ...portalData,
+                    x, y
+                };
+                this.portals.push(portal);
+                placed = true;
+
+                // Carve space around portal
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        if (nx > 0 && nx < this.config.mazeWidth - 1 &&
+                            ny > 0 && ny < this.config.mazeHeight - 1) {
+                            this.maze[ny][nx] = 0;
+                        }
+                    }
+                }
+            }
+            attempts++;
+        }
+    }
+
+    getPortalAt(x, y) {
+        return this.portals.find(p => p.x === x && p.y === y);
+    }
+
+    teleportToArea(portal) {
+        const targetArea = portal.toArea;
+
+        this.addMessage(`正在传送到 ${OPEN_WORLD_AREAS[targetArea].name}...`, "system");
+
+        // Change current area
+        this.currentArea = targetArea;
+
+        // Generate new area map
+        this.generateOpenWorldMap();
+
+        // Find spawn position near the return portal
+        const returnPortal = this.portals.find(p => p.toArea !== this.currentArea);
+        if (returnPortal) {
+            // Spawn near return portal
+            this.player.x = returnPortal.x + 1;
+            this.player.y = returnPortal.y;
+            if (this.maze[this.player.y][this.player.x] !== 0) {
+                this.player.x = returnPortal.x;
+                this.player.y = returnPortal.y + 1;
+            }
+        }
+
+        this.updateExplored();
+    }
+
+    spawnOpenWorldEnemies(area) {
+        const numEnemies = 8 + Math.floor(Math.random() * 5);
+        const enemyTypes = area.enemies || ['zombie', 'polluted'];
+
+        for (let i = 0; i < numEnemies; i++) {
+            const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+            let enemyData;
+
+            if (type === 'zombie') {
+                enemyData = ZOMBIE_DATA[Math.floor(Math.random() * ZOMBIE_DATA.length)];
+            } else {
+                enemyData = POLLUTED_POKEMON_DATA[Math.floor(Math.random() * POLLUTED_POKEMON_DATA.length)];
+            }
+
+            this.placePokemon(enemyData);
+        }
+    }
+
+    placeAreaBoss(area) {
+        const bossData = BOSS_DATA.chapter2.find(b => b.id === area.bossId);
+        if (!bossData) return;
+
+        // Place boss at a strategic location
+        const midX = Math.floor(this.config.mazeWidth / 2);
+        const midY = Math.floor(this.config.mazeHeight / 2);
+
+        // Clear area for boss
+        for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+                const nx = midX + dx;
+                const ny = midY + dy;
+                if (nx > 0 && nx < this.config.mazeWidth - 1 &&
+                    ny > 0 && ny < this.config.mazeHeight - 1) {
+                    this.maze[ny][nx] = 0;
+                }
+            }
+        }
+
+        // Offset boss from center so player can approach
+        const bossX = midX + 3;
+        const bossY = midY;
+
+        if (bossX > 0 && bossX < this.config.mazeWidth - 1) {
+            const boss = {
+                ...bossData,
+                x: bossX,
+                y: bossY,
+                currentHp: bossData.hp,
+                maxHp: bossData.hp,
+                isBoss: true,
+                buffedAttack: 0,
+                buffedDefense: 0,
+                specialCooldown: 0
+            };
+            this.entities.push(boss);
+
+            this.addMessage(`⚠️ ${bossData.name} 在此区域徘徊！`, "system");
+        }
+    }
+
+    handleAreaHazard() {
+        const area = OPEN_WORLD_AREAS[this.currentArea];
+        if (!area || !area.hazard) return;
+
+        if (area.hazard.type === 'pollution') {
+            const pollutionResist = this.player.equipment.accessory?.stats?.pollutionResist || 0;
+            const damage = Math.floor(area.hazard.value * (1 - pollutionResist));
+
+            if (damage > 0) {
+                this.player.pollution = Math.min(this.player.maxPollution, this.player.pollution + damage);
+                this.addMessage(`环境污染！污染值+${damage}`, "system");
+
+                if (this.player.pollution >= this.player.maxPollution) {
+                    this.addMessage(`污染值已满！你被完全污染了...`, "system");
+                    this.player.hp = 0;
+                    this.gameOver();
+                }
+            }
+        }
+
+        this.updatePlayerStats();
     }
 
     spawnChapter2Enemies() {
@@ -612,15 +1136,26 @@ class Game {
         // 更新探索区域
         this.updateExplored();
 
-        // 检查楼梯
+        // 检查楼梯 (not used in open world)
         if (this.stairsPos && newX === this.stairsPos.x && newY === this.stairsPos.y) {
             this.nextFloor();
+        }
+
+        // 检查传送门
+        const portal = this.getPortalAt(newX, newY);
+        if (portal) {
+            this.addMessage(`发现了 ${portal.emoji} ${portal.name}！按空格键传送`, "item");
         }
 
         // 检查道具
         const item = this.getItemAt(newX, newY);
         if (item) {
             this.addMessage(`发现了 ${item.emoji} ${item.name}！按空格键拾取`, "item");
+        }
+
+        // 处理区域环境危害 (每回合)
+        if (CHAPTERS[this.state.chapter]?.mapType === 'openWorld') {
+            this.handleAreaHazard();
         }
 
         // 宝可梦AI移动
@@ -1015,9 +1550,37 @@ class Game {
             this.player.hp = Math.min(this.player.hp + statBonus * 5, this.player.maxHp);
             this.addBattleLog(`击败BOSS！攻击+${statBonus}，防御+${Math.floor(statBonus / 2)}，最大HP+${statBonus * 5}！`);
 
+            // Track defeated boss for open world
+            if (!this.defeatedBosses.includes(enemy.id)) {
+                this.defeatedBosses.push(enemy.id);
+
+                // Reduce world pollution when boss is defeated
+                if (CHAPTERS[this.state.chapter]?.mapType === 'openWorld') {
+                    const pollutionReduction = enemy.isFinalBoss ? 40 : 20;
+                    this.worldPollution = Math.max(0, this.worldPollution - pollutionReduction);
+                    this.addMessage(`🌿 世界污染度降低了 ${pollutionReduction}%！当前: ${this.worldPollution}%`, "system");
+
+                    // Check if world is purified
+                    if (this.worldPollution <= 0) {
+                        this.addMessage("🎊 世界已被完全净化！", "system");
+                    }
+
+                    // Unlock sanctuary portal message
+                    const requiredBosses = [501, 502, 503];
+                    const allDefeated = requiredBosses.every(id => this.defeatedBosses.includes(id));
+                    if (allDefeated && !this.defeatedBosses.includes(504)) {
+                        this.addMessage("✨ 净化圣所的传送门已经开启！", "system");
+                    }
+                }
+            }
+
             // 最终BOSS特殊消息
             if (enemy.isFinalBoss) {
                 this.addMessage("🏆 恭喜！你击败了最终BOSS！", "system");
+                if (this.worldPollution <= 0) {
+                    this.victory();
+                    return;
+                }
             } else if (enemy.isChapterBoss) {
                 this.addMessage("👑 章节BOSS已被击败！前方的道路已经打开！", "system");
             } else {
@@ -1025,6 +1588,15 @@ class Game {
             }
         } else {
             this.addBattleLog(`胜利！获得 ${exp} 经验和 ${totalGold} 金币！`);
+
+            // Reduce world pollution slightly when defeating enemies in open world
+            if (CHAPTERS[this.state.chapter]?.mapType === 'openWorld' && this.worldPollution > 0) {
+                const pollutionReduction = Math.max(1, Math.floor(exp / 20));
+                this.worldPollution = Math.max(0, this.worldPollution - pollutionReduction);
+                if (pollutionReduction > 0) {
+                    this.addBattleLog(`🌿 世界污染度-${pollutionReduction}%`);
+                }
+            }
         }
 
         // 升级检查
@@ -1240,6 +1812,13 @@ class Game {
     // ==================== 道具系统 ====================
 
     pickupItem() {
+        // Check for portal first
+        const portal = this.getPortalAt(this.player.x, this.player.y);
+        if (portal) {
+            this.teleportToArea(portal);
+            return;
+        }
+
         const item = this.getItemAt(this.player.x, this.player.y);
 
         if (!item) {
@@ -1489,11 +2068,18 @@ class Game {
         document.getElementById('level-display').textContent = `Lv: ${this.player.level}`;
         document.getElementById('exp-display').textContent = `EXP: ${this.player.exp}/${this.player.expToNext}`;
         document.getElementById('gold-display').textContent = `金币: ${this.player.gold}`;
-        document.getElementById('floor-display').textContent = `楼层: ${this.state.floor}F`;
 
         // 章节显示
         const chapter = CHAPTERS[this.state.chapter];
         document.getElementById('chapter-display').textContent = chapter ? chapter.name.split('：')[0] : '';
+
+        // 楼层/区域显示
+        if (chapter?.mapType === 'openWorld') {
+            const area = OPEN_WORLD_AREAS[this.currentArea];
+            document.getElementById('floor-display').textContent = area ? area.name : '未知区域';
+        } else {
+            document.getElementById('floor-display').textContent = `楼层: ${this.state.floor}F`;
+        }
 
         // 污染值显示（只在第二章显示）
         const pollutionContainer = document.getElementById('pollution-container');
@@ -1504,6 +2090,16 @@ class Game {
             document.getElementById('pollution-value').textContent = `${this.player.pollution}/${this.player.maxPollution}`;
         } else {
             pollutionContainer.classList.add('hidden');
+        }
+
+        // 世界污染度显示（只在开放世界显示）
+        const worldPollutionContainer = document.getElementById('world-pollution-container');
+        if (chapter?.mapType === 'openWorld') {
+            worldPollutionContainer.classList.remove('hidden');
+            document.getElementById('world-pollution-fill').style.width = `${this.worldPollution}%`;
+            document.getElementById('world-pollution-value').textContent = `${this.worldPollution}%`;
+        } else {
+            worldPollutionContainer.classList.add('hidden');
         }
 
         // 流血状态显示
@@ -1859,6 +2455,34 @@ class Game {
             ctx.fillText('🚪', sx + tileSize / 2, sy + tileSize / 2);
         }
 
+        // 绘制传送门
+        for (const portal of this.portals) {
+            if (!this.explored[portal.y][portal.x]) continue;
+
+            const px = portal.x * tileSize + offsetX;
+            const py = portal.y * tileSize + offsetY;
+
+            // Portal glow effect
+            const gradient = ctx.createRadialGradient(
+                px + tileSize / 2, py + tileSize / 2, 0,
+                px + tileSize / 2, py + tileSize / 2, tileSize / 2
+            );
+            gradient.addColorStop(0, portal.color || '#a855f7');
+            gradient.addColorStop(0.5, portal.color ? portal.color + '80' : '#a855f780');
+            gradient.addColorStop(1, 'transparent');
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(px + tileSize / 2, py + tileSize / 2, tileSize / 2 + 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Portal icon
+            ctx.font = `${tileSize - 6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(portal.emoji, px + tileSize / 2, py + tileSize / 2);
+        }
+
         // 绘制道具
         for (const item of this.items) {
             if (!this.explored[item.y][item.x]) continue;
@@ -1993,6 +2617,13 @@ class Game {
         if (this.stairsPos && this.explored[this.stairsPos.y][this.stairsPos.x]) {
             ctx.fillStyle = '#4ecdc4';
             ctx.fillRect(this.stairsPos.x * scale, this.stairsPos.y * scale, scale, scale);
+        }
+
+        // 绘制传送门
+        for (const portal of this.portals) {
+            if (!this.explored[portal.y][portal.x]) continue;
+            ctx.fillStyle = portal.color || '#a855f7';
+            ctx.fillRect(portal.x * scale, portal.y * scale, scale + 1, scale + 1);
         }
 
         // 绘制宝可梦
