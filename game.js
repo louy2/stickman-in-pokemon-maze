@@ -378,15 +378,52 @@ class Game {
     placePokemon(pokemonData) {
         let placed = false;
         let attempts = 0;
+        const needsRoom = pokemonData.type === 'shop' || pokemonData.type === 'healer';
 
         while (!placed && attempts < 100) {
-            const x = Math.floor(Math.random() * (this.config.mazeWidth - 2)) + 1;
-            const y = Math.floor(Math.random() * (this.config.mazeHeight - 2)) + 1;
+            const x = Math.floor(Math.random() * (this.config.mazeWidth - 4)) + 2;
+            const y = Math.floor(Math.random() * (this.config.mazeHeight - 4)) + 2;
 
             if (this.maze[y][x] === 0 &&
                 (x !== this.player.x || y !== this.player.y) &&
                 !this.getEntityAt(x, y) &&
                 (x !== this.stairsPos?.x || y !== this.stairsPos?.y)) {
+
+                // For shop and healer, create a small room around them
+                if (needsRoom) {
+                    // Check we have space to carve a room (not too close to edges)
+                    if (x >= 2 && x < this.config.mazeWidth - 2 &&
+                        y >= 2 && y < this.config.mazeHeight - 2) {
+                        // Carve a 3x3 room around the NPC
+                        for (let dy = -1; dy <= 1; dy++) {
+                            for (let dx = -1; dx <= 1; dx++) {
+                                const nx = x + dx;
+                                const ny = y + dy;
+                                if (nx > 0 && nx < this.config.mazeWidth - 1 &&
+                                    ny > 0 && ny < this.config.mazeHeight - 1) {
+                                    this.maze[ny][nx] = 0;
+                                }
+                            }
+                        }
+                        // Ensure at least one entrance to the room
+                        const entrances = [
+                            { dx: 0, dy: -2 }, // top
+                            { dx: 0, dy: 2 },  // bottom
+                            { dx: -2, dy: 0 }, // left
+                            { dx: 2, dy: 0 }   // right
+                        ];
+                        // Pick a random entrance and carve path to it
+                        const entrance = entrances[Math.floor(Math.random() * entrances.length)];
+                        const ex = x + entrance.dx;
+                        const ey = y + entrance.dy;
+                        if (ex > 0 && ex < this.config.mazeWidth - 1 &&
+                            ey > 0 && ey < this.config.mazeHeight - 1) {
+                            this.maze[ey][ex] = 0;
+                            // Also carve the tile between room and entrance
+                            this.maze[y + entrance.dy / 2][x + entrance.dx / 2] = 0;
+                        }
+                    }
+                }
 
                 const pokemon = {
                     ...pokemonData,
