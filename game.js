@@ -219,11 +219,17 @@ class Game {
         // 放置楼梯
         this.placeStairs();
 
-        // 根据章节生成不同敌人
-        if (this.state.chapter === 1) {
-            this.spawnPokemon();
+        // 检查是否是BOSS层
+        const boss = getBossForFloor(this.state.chapter, this.state.floor);
+        if (boss) {
+            this.spawnBoss(boss);
         } else {
-            this.spawnChapter2Enemies();
+            // 根据章节生成不同敌人
+            if (this.state.chapter === 1) {
+                this.spawnPokemon();
+            } else {
+                this.spawnChapter2Enemies();
+            }
         }
 
         // 生成道具
@@ -314,6 +320,56 @@ class Game {
         if (Math.random() < 0.5) {
             const shopPokemon = POKEMON_DATA.filter(p => p.type === 'shop');
             this.placePokemon(shopPokemon[Math.floor(Math.random() * shopPokemon.length)]);
+        }
+    }
+
+    spawnBoss(bossData) {
+        // 显示BOSS警告
+        this.addMessage("⚠️ 警告：检测到强大的敌人！", "system");
+        this.addMessage(bossData.intro, "system");
+
+        // 创建BOSS房间 (大房间)
+        const roomCenterX = Math.floor(this.config.mazeWidth / 2);
+        const roomCenterY = Math.floor(this.config.mazeHeight / 2);
+
+        // 清空5x5的BOSS房间
+        for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+                const nx = roomCenterX + dx;
+                const ny = roomCenterY + dy;
+                if (nx > 0 && nx < this.config.mazeWidth - 1 &&
+                    ny > 0 && ny < this.config.mazeHeight - 1) {
+                    this.maze[ny][nx] = 0;
+                }
+            }
+        }
+
+        // 创建通往BOSS房间的通道
+        for (let x = 2; x < roomCenterX - 2; x++) {
+            this.maze[roomCenterY][x] = 0;
+        }
+
+        // 放置BOSS
+        const boss = {
+            ...bossData,
+            x: roomCenterX,
+            y: roomCenterY,
+            currentHp: bossData.hp,
+            maxHp: bossData.hp,
+            isBoss: true,
+            buffedAttack: 0,
+            buffedDefense: 0,
+            specialCooldown: 0
+        };
+        this.entities.push(boss);
+
+        // BOSS层不放其他敌人，但放一个治疗者
+        if (this.state.chapter === 1) {
+            const healerPokemon = POKEMON_DATA.filter(p => p.type === 'healer');
+            this.placePokemon(healerPokemon[Math.floor(Math.random() * healerPokemon.length)]);
+        } else {
+            const healer = SURFACE_HEALERS[Math.floor(Math.random() * SURFACE_HEALERS.length)];
+            this.placePokemon(healer);
         }
     }
 
@@ -642,7 +698,7 @@ class Game {
     }
 
     interactWithEntity(entity) {
-        if (entity.type === 'hostile' || entity.type === 'zombie' || entity.type === 'polluted') {
+        if (entity.type === 'hostile' || entity.type === 'zombie' || entity.type === 'polluted' || entity.type === 'boss') {
             this.startBattle(entity);
         } else if (entity.type === 'shop') {
             this.openShop(entity);
@@ -658,7 +714,15 @@ class Game {
         this.currentEnemy = enemy;
 
         const battleOverlay = document.getElementById('battle-overlay');
+        const battleBox = document.getElementById('battle-box');
         battleOverlay.classList.remove('hidden');
+
+        // BOSS战斗特殊样式
+        if (enemy.isBoss || enemy.type === 'boss') {
+            battleBox.classList.add('boss-battle');
+        } else {
+            battleBox.classList.remove('boss-battle');
+        }
 
         // 显示敌人像素精灵
         const spriteCanvas = document.getElementById('enemy-sprite-canvas');
@@ -670,7 +734,15 @@ class Game {
             drawSprite(spriteCtx, spriteData, 0, 0, 96);
         }
 
-        document.getElementById('enemy-name').textContent = `${enemy.name} Lv.${this.state.floor + Math.floor(enemy.exp / 30)}`;
+        // BOSS显示特殊名称
+        const enemyName = document.getElementById('enemy-name');
+        if (enemy.isBoss || enemy.type === 'boss') {
+            enemyName.textContent = `👑 BOSS: ${enemy.name}`;
+            enemyName.style.color = '#ff6b6b';
+        } else {
+            enemyName.textContent = `${enemy.name} Lv.${this.state.floor + Math.floor(enemy.exp / 30)}`;
+            enemyName.style.color = '';
+        }
         this.updateEnemyHpBar();
 
         // 清空战斗日志
@@ -680,11 +752,21 @@ class Game {
         const dialogue = enemy.dialogues[Math.floor(Math.random() * enemy.dialogues.length)];
         this.addBattleLog(`${enemy.name}: "${dialogue}"`);
 
+        // BOSS战斗不能逃跑
+        const fleeBtn = document.getElementById('btn-flee');
+        if (enemy.isBoss || enemy.type === 'boss') {
+            fleeBtn.disabled = true;
+            fleeBtn.textContent = '无法逃跑';
+        } else {
+            fleeBtn.disabled = false;
+            fleeBtn.textContent = '逃跑';
+        }
+
         // 设置按钮
         document.getElementById('btn-attack').onclick = () => this.battleAttack();
         document.getElementById('btn-skill').onclick = () => this.battleSkill();
         document.getElementById('btn-item').onclick = () => this.battleItem();
-        document.getElementById('btn-flee').onclick = () => this.battleFlee();
+        fleeBtn.onclick = () => this.battleFlee();
     }
 
     updateEnemyHpBar() {
@@ -759,17 +841,51 @@ class Game {
     }
 
     enemyTurn() {
-        const enemyAttack = this.currentEnemy.attack || 10;
+        const enemy = this.currentEnemy;
+        const isBoss = enemy.isBoss || enemy.type === 'boss';
+
+        // BOSS特殊攻击
+        if (isBoss && enemy.specialAttacks && enemy.specialAttacks.length > 0) {
+            // 减少冷却
+            if (enemy.specialCooldown > 0) {
+                enemy.specialCooldown--;
+            }
+
+            // 50%概率使用特殊攻击（如果不在冷却中）
+            if (Math.random() < 0.5 || enemy.currentHp < enemy.maxHp * 0.3) {
+                const availableSpecials = enemy.specialAttacks.filter(s => !s.cooldown || enemy.specialCooldown === 0);
+                if (availableSpecials.length > 0) {
+                    const special = availableSpecials[Math.floor(Math.random() * availableSpecials.length)];
+                    this.executeBossSpecial(special);
+                    if (special.cooldown) {
+                        enemy.specialCooldown = 3;
+                    }
+                    this.updatePlayerStats();
+                    if (this.player.hp <= 0) {
+                        this.playerDefeated();
+                    }
+                    return;
+                }
+            }
+        }
+
+        // 普通攻击
+        let enemyAttack = enemy.attack || 10;
+        // BOSS可能有buff
+        if (isBoss && enemy.buffedAttack) {
+            enemyAttack += enemy.buffedAttack;
+        }
+
         const totalDefense = this.player.defense + this.player.buffs.defense +
             (this.player.equipment.armor?.stats?.defense || 0);
         const damage = Math.max(1, enemyAttack - totalDefense + Math.floor(Math.random() * 3));
 
         this.player.hp -= damage;
-        this.addBattleLog(`${this.currentEnemy.name} 攻击！你受到 ${damage} 点伤害！`);
+        this.addBattleLog(`${enemy.name} 攻击！你受到 ${damage} 点伤害！`);
 
-        // 僵尸攻击：25%概率流血
-        if (this.currentEnemy.type === 'zombie' && this.currentEnemy.bleedChance) {
-            if (Math.random() < this.currentEnemy.bleedChance && !this.player.bleeding) {
+        // 僵尸攻击：流血概率
+        if ((enemy.type === 'zombie' || enemy.bleedChance) && enemy.bleedChance) {
+            if (Math.random() < enemy.bleedChance && !this.player.bleeding) {
                 this.player.bleeding = true;
                 this.player.bleedingTurns = 5;
                 this.addBattleLog(`你被咬伤了！开始流血！`);
@@ -777,8 +893,8 @@ class Game {
         }
 
         // 污染宝可梦攻击：增加污染值
-        if ((this.currentEnemy.type === 'polluted' || this.currentEnemy.pollutionDamage) && this.state.chapter >= 2) {
-            let pollutionDamage = this.currentEnemy.pollutionDamage || 5;
+        if ((enemy.type === 'polluted' || enemy.pollutionDamage) && this.state.chapter >= 2) {
+            let pollutionDamage = enemy.pollutionDamage || 5;
 
             // 防毒面具减少污染伤害
             const pollutionResist = this.player.equipment.accessory?.stats?.pollutionResist || 0;
@@ -801,9 +917,84 @@ class Game {
         }
     }
 
+    executeBossSpecial(special) {
+        const enemy = this.currentEnemy;
+        this.addBattleLog(special.message);
+
+        // 处理不同效果
+        if (special.damage > 0) {
+            let baseDamage = (enemy.attack || 10) * special.damage;
+
+            // 无视防御
+            if (special.ignoreDefense) {
+                const damage = Math.floor(baseDamage + Math.floor(Math.random() * 10));
+                this.player.hp -= damage;
+                this.addBattleLog(`造成 ${damage} 点伤害！(无视防御)`);
+            } else {
+                const totalDefense = this.player.defense + this.player.buffs.defense +
+                    (this.player.equipment.armor?.stats?.defense || 0);
+                const damage = Math.max(1, Math.floor(baseDamage) - totalDefense + Math.floor(Math.random() * 5));
+                this.player.hp -= damage;
+                this.addBattleLog(`造成 ${damage} 点伤害！`);
+            }
+        }
+
+        // 处理特殊效果
+        if (special.effect) {
+            switch (special.effect) {
+                case 'bleed':
+                    if (!this.player.bleeding) {
+                        this.player.bleeding = true;
+                        this.player.bleedingTurns = 5;
+                        this.addBattleLog(`你开始流血！`);
+                    }
+                    break;
+                case 'pollution':
+                    if (this.state.chapter >= 2) {
+                        const pollutionResist = this.player.equipment.accessory?.stats?.pollutionResist || 0;
+                        const pollutionDamage = Math.floor((special.value || 10) * (1 - pollutionResist));
+                        this.player.pollution = Math.min(this.player.maxPollution, this.player.pollution + pollutionDamage);
+                        this.addBattleLog(`污染值+${pollutionDamage}`);
+                        if (this.player.pollution >= this.player.maxPollution) {
+                            this.addBattleLog(`污染值已满！`);
+                            this.player.hp = 0;
+                        }
+                    }
+                    break;
+                case 'buff':
+                    enemy.buffedAttack = (enemy.buffedAttack || 0) + 10;
+                    this.addBattleLog(`${enemy.name}的攻击力提升了！`);
+                    break;
+                case 'shield':
+                    enemy.buffedDefense = (enemy.buffedDefense || 0) + 15;
+                    this.addBattleLog(`${enemy.name}的防御力提升了！`);
+                    break;
+                case 'heal':
+                    const healAmount = special.value || 50;
+                    enemy.currentHp = Math.min(enemy.maxHp, enemy.currentHp + healAmount);
+                    this.updateEnemyHpBar();
+                    this.addBattleLog(`${enemy.name}恢复了${healAmount}HP！`);
+                    break;
+                case 'fullheal':
+                    enemy.currentHp = enemy.maxHp;
+                    this.updateEnemyHpBar();
+                    this.addBattleLog(`${enemy.name}完全恢复了！`);
+                    break;
+                case 'paralyze':
+                    if (special.chance && Math.random() < special.chance) {
+                        this.addBattleLog(`你被麻痹了！下回合无法行动！`);
+                        // TODO: 实现麻痹效果
+                    }
+                    break;
+            }
+        }
+    }
+
     battleVictory() {
-        const exp = this.currentEnemy.exp || 20;
-        const gold = this.currentEnemy.gold || 10;
+        const enemy = this.currentEnemy;
+        const isBoss = enemy.isBoss || enemy.type === 'boss';
+        const exp = enemy.exp || 20;
+        const gold = enemy.gold || 10;
 
         // 幸运戒指加成
         const goldBonus = this.player.equipment.accessory?.stats?.goldBonus || 0;
@@ -812,7 +1003,29 @@ class Game {
         this.player.exp += exp;
         this.player.gold += totalGold;
 
-        this.addBattleLog(`胜利！获得 ${exp} 经验和 ${totalGold} 金币！`);
+        if (isBoss) {
+            this.addBattleLog(`🎉 BOSS击破！！！`);
+            this.addBattleLog(`获得 ${exp} 经验和 ${totalGold} 金币！`);
+
+            // BOSS击败奖励：永久属性提升
+            const statBonus = enemy.isChapterBoss ? 5 : 3;
+            this.player.attack += statBonus;
+            this.player.defense += Math.floor(statBonus / 2);
+            this.player.maxHp += statBonus * 5;
+            this.player.hp = Math.min(this.player.hp + statBonus * 5, this.player.maxHp);
+            this.addBattleLog(`击败BOSS！攻击+${statBonus}，防御+${Math.floor(statBonus / 2)}，最大HP+${statBonus * 5}！`);
+
+            // 最终BOSS特殊消息
+            if (enemy.isFinalBoss) {
+                this.addMessage("🏆 恭喜！你击败了最终BOSS！", "system");
+            } else if (enemy.isChapterBoss) {
+                this.addMessage("👑 章节BOSS已被击败！前方的道路已经打开！", "system");
+            } else {
+                this.addMessage(`👑 BOSS ${enemy.name} 已被击败！`, "system");
+            }
+        } else {
+            this.addBattleLog(`胜利！获得 ${exp} 经验和 ${totalGold} 金币！`);
+        }
 
         // 升级检查
         while (this.player.exp >= this.player.expToNext) {
@@ -830,7 +1043,7 @@ class Game {
         // 移除敌人
         this.entities = this.entities.filter(e => e !== this.currentEnemy);
 
-        setTimeout(() => this.endBattle(true), 1000);
+        setTimeout(() => this.endBattle(true), isBoss ? 2000 : 1000);
     }
 
     playerDefeated() {
@@ -1417,10 +1630,11 @@ class Game {
     attackNearby() {
         // 攻击相邻的敌人
         const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+        const hostileTypes = ['hostile', 'zombie', 'polluted', 'boss'];
 
         for (const [dx, dy] of directions) {
             const entity = this.getEntityAt(this.player.x + dx, this.player.y + dy);
-            if (entity && entity.type === 'hostile') {
+            if (entity && hostileTypes.includes(entity.type)) {
                 this.startBattle(entity);
                 return;
             }

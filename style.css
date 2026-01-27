@@ -361,6 +361,45 @@ html {
     background: linear-gradient(180deg, #888 0%, #666 100%);
 }
 
+#btn-flee:disabled {
+    background: linear-gradient(180deg, #444 0%, #333 100%);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Boss Battle Styles */
+#battle-box.boss-battle {
+    border-color: #ffd700;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.5), inset 0 0 20px rgba(255, 0, 0, 0.1);
+    animation: bossGlow 2s ease-in-out infinite;
+}
+
+@keyframes bossGlow {
+    0%, 100% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.5), inset 0 0 20px rgba(255, 0, 0, 0.1); }
+    50% { box-shadow: 0 0 50px rgba(255, 107, 107, 0.7), inset 0 0 30px rgba(255, 0, 0, 0.2); }
+}
+
+#battle-box.boss-battle #enemy-hp-bar {
+    height: 25px;
+    border: 2px solid #ffd700;
+}
+
+#battle-box.boss-battle #enemy-hp-fill {
+    background: linear-gradient(90deg, #ff4444 0%, #ff6b6b 50%, #ffd700 100%);
+}
+
+#battle-box.boss-battle #enemy-sprite-canvas {
+    width: 110px;
+    height: 110px;
+    border: 3px solid #ffd700;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+}
+
+#battle-box.boss-battle #enemy-name {
+    font-size: 22px;
+    text-shadow: 0 0 10px #ffd700;
+}
+
 /* Shop Overlay */
 #shop-box {
     background: linear-gradient(180deg, #2a4a2a 0%, #1a2e1a 100%);
