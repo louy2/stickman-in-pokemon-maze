@@ -6,10 +6,23 @@
 
 body {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Microsoft YaHei', 'PingFang SC', sans-serif;
     color: #fff;
     min-height: 100vh;
+    min-height: -webkit-fill-available;
     overflow-x: hidden;
+    /* iOS overscroll fix */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    /* Prevent text selection on game elements */
+    -webkit-user-select: none;
+    user-select: none;
+    /* Prevent pull-to-refresh */
+    overflow-y: hidden;
+}
+
+html {
+    height: -webkit-fill-available;
 }
 
 #game-container {
@@ -569,6 +582,17 @@ body {
     align-items: center;
 }
 
+/* Phone Controls Layout */
+.phone-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.phone-controls .action-row {
+    margin-top: 5px;
+}
+
 /* Touch-friendly defaults */
 button, .ctrl-btn, .inventory-item, .shop-item button {
     -webkit-tap-highlight-color: transparent;
@@ -852,7 +876,10 @@ button, .ctrl-btn, .inventory-item, .shop-item button {
 
     #game-container {
         padding: 5px;
-        padding-bottom: 200px;
+        padding-top: max(5px, env(safe-area-inset-top));
+        padding-bottom: calc(200px + env(safe-area-inset-bottom));
+        padding-left: max(5px, env(safe-area-inset-left));
+        padding-right: max(5px, env(safe-area-inset-right));
     }
 
     .ctrl-btn {
@@ -900,9 +927,298 @@ button, .ctrl-btn, .inventory-item, .shop-item button {
     #pollution-value {
         font-size: 11px;
     }
+
+    /* Mobile controls safe area */
+    #mobile-controls {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
 }
 
-/* Small phones */
+/* iPhone SE, iPhone 8 and similar (375px width) */
+@media (max-width: 414px) and (min-height: 600px) {
+    #game-container {
+        padding-bottom: calc(190px + env(safe-area-inset-bottom));
+    }
+
+    #top-bar {
+        padding: 6px 10px;
+        border-radius: 8px;
+    }
+
+    #player-stats {
+        gap: 5px;
+    }
+
+    #player-stats span {
+        font-size: 10px;
+        padding: 3px 6px;
+        border-radius: 4px;
+    }
+
+    #message-log {
+        height: 50px;
+        margin-bottom: 5px;
+    }
+
+    #messages {
+        font-size: 11px;
+    }
+
+    .ctrl-btn {
+        width: 56px;
+        height: 56px;
+        font-size: 22px;
+        border-radius: 14px;
+    }
+
+    .ctrl-btn.action {
+        width: 52px;
+        height: 52px;
+        font-size: 11px;
+    }
+
+    .control-row {
+        gap: 8px;
+        margin: 4px 0;
+    }
+
+    /* Overlays for iPhone */
+    #battle-box, #shop-box, #dialog-box {
+        margin: 10px;
+        max-height: calc(100vh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        overflow-y: auto;
+    }
+
+    #battle-box {
+        padding: 15px;
+    }
+
+    #enemy-sprite-canvas {
+        width: 72px;
+        height: 72px;
+    }
+
+    #battle-log {
+        height: 80px;
+        font-size: 12px;
+    }
+
+    #battle-actions {
+        gap: 8px;
+    }
+
+    #battle-actions button {
+        padding: 12px 8px;
+        font-size: 13px;
+        min-height: 44px;
+    }
+
+    #shop-box {
+        padding: 15px;
+        max-width: calc(100vw - 20px);
+    }
+
+    .shop-item {
+        padding: 10px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .shop-item-price {
+        margin-left: 0;
+    }
+
+    .shop-item button {
+        width: 100%;
+        padding: 12px;
+    }
+
+    #dialog-box {
+        padding: 15px;
+        flex-direction: column;
+    }
+
+    #dialog-portrait-canvas {
+        width: 60px;
+        height: 60px;
+        margin: 0 auto 10px;
+    }
+
+    #dialog-text {
+        font-size: 14px;
+    }
+
+    #dialog-options {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    #dialog-options button {
+        width: 100%;
+        padding: 12px;
+    }
+
+    /* Story overlay iPhone */
+    #story-box {
+        padding: 30px 20px;
+        margin: 20px;
+    }
+
+    #story-text {
+        font-size: 16px;
+    }
+
+    #story-next {
+        padding: 14px 40px;
+        font-size: 16px;
+    }
+
+    /* Game over iPhone */
+    #gameover-box {
+        padding: 30px 20px;
+    }
+
+    #gameover-box h1 {
+        font-size: 28px;
+    }
+}
+
+/* iPhone Pro Max / Plus models (larger phones) */
+@media (min-width: 415px) and (max-width: 480px) {
+    .ctrl-btn {
+        width: 65px;
+        height: 65px;
+        font-size: 26px;
+    }
+
+    .ctrl-btn.action {
+        width: 60px;
+        height: 60px;
+        font-size: 13px;
+    }
+
+    .control-row {
+        gap: 12px;
+    }
+
+    #player-stats span {
+        font-size: 12px;
+        padding: 4px 10px;
+    }
+}
+
+/* Notched iPhones (iPhone X and later) - detected by safe area */
+@supports (padding-top: env(safe-area-inset-top)) {
+    @media (max-width: 600px) {
+        body {
+            /* Ensure content doesn't go under notch */
+            padding-top: env(safe-area-inset-top);
+        }
+
+        #game-container {
+            padding-top: max(5px, env(safe-area-inset-top));
+        }
+
+        #mobile-controls {
+            bottom: 10px;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+
+        /* Overlays respect safe areas */
+        .overlay, #battle-overlay, #shop-overlay, #dialog-overlay, #story-overlay, #gameover-overlay {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+    }
+}
+
+/* iPhone landscape mode */
+@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
+    #game-container {
+        padding: 5px;
+        padding-left: max(5px, env(safe-area-inset-left));
+        padding-right: max(5px, env(safe-area-inset-right));
+        padding-bottom: calc(160px + env(safe-area-inset-bottom));
+    }
+
+    #top-bar {
+        padding: 4px 10px;
+    }
+
+    #player-stats span {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+
+    #player-stats {
+        gap: 5px;
+    }
+
+    #message-log {
+        height: 40px;
+    }
+
+    #mobile-controls {
+        position: fixed;
+        bottom: 5px;
+        left: env(safe-area-inset-left);
+        right: auto;
+        width: auto;
+        padding: 5px;
+    }
+
+    .tablet-controls, #mobile-controls > div {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .dpad-container, .action-container {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .ctrl-btn {
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+        border-radius: 10px;
+    }
+
+    .ctrl-btn.action {
+        width: 42px;
+        height: 42px;
+        font-size: 10px;
+    }
+
+    .control-row {
+        gap: 5px;
+        margin: 2px 0;
+    }
+
+    /* Landscape overlays */
+    #battle-box, #shop-box, #dialog-box {
+        max-height: calc(100vh - 20px);
+        flex-direction: row;
+        max-width: 90vw;
+    }
+
+    #battle-enemy {
+        flex-shrink: 0;
+    }
+
+    #battle-log {
+        height: 60px;
+    }
+
+    #shop-items {
+        max-height: 150px;
+    }
+}
+
+/* Small phones (iPhone SE 1st gen, etc) */
 @media (max-width: 380px) {
     .ctrl-btn {
         width: 50px;
@@ -911,8 +1227,8 @@ button, .ctrl-btn, .inventory-item, .shop-item button {
     }
 
     .ctrl-btn.action {
-        width: 45px;
-        height: 45px;
+        width: 46px;
+        height: 46px;
         font-size: 10px;
     }
 
@@ -921,8 +1237,35 @@ button, .ctrl-btn, .inventory-item, .shop-item button {
     }
 
     #player-stats span {
+        font-size: 9px;
+        padding: 2px 5px;
+    }
+
+    #player-stats {
+        gap: 4px;
+    }
+
+    #top-bar {
+        padding: 5px 8px;
+    }
+
+    #message-log {
+        height: 45px;
+    }
+
+    #messages {
         font-size: 10px;
-        padding: 2px 6px;
+    }
+
+    /* Smaller overlays */
+    #battle-actions button {
+        padding: 10px 6px;
+        font-size: 12px;
+    }
+
+    #enemy-sprite-canvas {
+        width: 64px;
+        height: 64px;
     }
 }
 
