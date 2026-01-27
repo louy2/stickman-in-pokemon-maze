@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>火柴人宝可梦不思议迷宫</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -15,6 +15,17 @@
                 <span id="exp-display">EXP: 0/100</span>
                 <span id="gold-display">金币: 0</span>
                 <span id="floor-display">楼层: 1F</span>
+                <span id="chapter-display">第一章</span>
+            </div>
+            <div id="status-bars">
+                <div id="pollution-container" class="hidden">
+                    <span>污染:</span>
+                    <div id="pollution-bar"><div id="pollution-fill"></div></div>
+                    <span id="pollution-value">0/100</span>
+                </div>
+                <div id="status-effects">
+                    <span id="bleeding-status" class="status-icon hidden">🩸流血</span>
+                </div>
             </div>
         </div>
 
@@ -55,7 +66,7 @@
     <!-- 对话框 -->
     <div id="dialog-overlay" class="hidden">
         <div id="dialog-box">
-            <div id="dialog-portrait"></div>
+            <canvas id="dialog-portrait-canvas" width="80" height="80"></canvas>
             <div id="dialog-content">
                 <div id="dialog-name"></div>
                 <div id="dialog-text"></div>
@@ -68,7 +79,7 @@
     <div id="battle-overlay" class="hidden">
         <div id="battle-box">
             <div id="battle-enemy">
-                <div id="enemy-sprite"></div>
+                <canvas id="enemy-sprite-canvas" width="96" height="96"></canvas>
                 <div id="enemy-name"></div>
                 <div id="enemy-hp-bar"><div id="enemy-hp-fill"></div></div>
             </div>
@@ -91,6 +102,14 @@
         </div>
     </div>
 
+    <!-- 剧情界面 -->
+    <div id="story-overlay" class="hidden">
+        <div id="story-box">
+            <div id="story-text"></div>
+            <button id="story-next">继续</button>
+        </div>
+    </div>
+
     <!-- 游戏结束 -->
     <div id="gameover-overlay" class="hidden">
         <div id="gameover-box">
@@ -101,6 +120,7 @@
     </div>
 
     <script src="data.js"></script>
+    <script src="sprites.js"></script>
     <script src="game.js"></script>
 </body>
 </html>

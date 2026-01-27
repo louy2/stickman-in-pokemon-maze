@@ -18,11 +18,13 @@ class Game {
 
         // 游戏状态
         this.state = {
+            chapter: 1,
             floor: 1,
             gameOver: false,
             inBattle: false,
             inShop: false,
-            inDialog: false
+            inDialog: false,
+            inStory: false
         };
 
         // 玩家数据
@@ -36,7 +38,12 @@ class Game {
             maxInventory: 20,
             equipment: { weapon: null, armor: null, accessory: null },
             buffs: { attack: 0, defense: 0 },
-            hasReviver: false
+            hasReviver: false,
+            // 第二章新属性
+            pollution: 0,
+            maxPollution: 100,
+            bleeding: false,
+            bleedingTurns: 0
         };
 
         // 地图数据
@@ -59,29 +66,95 @@ class Game {
         this.setupControls();
         this.setupMobileControls();
         this.gameLoop();
-        this.addMessage("欢迎来到宝可梦不思议迷宫！", "system");
+        this.showChapterIntro();
+    }
+
+    showChapterIntro() {
+        const chapter = CHAPTERS[this.state.chapter];
+        this.addMessage(`=== ${chapter.name} ===`, "system");
+        this.addMessage(chapter.description, "system");
         this.addMessage("使用方向键移动，Z攻击，空格拾取/交互", "system");
+    }
+
+    showStory(storyLines, callback) {
+        this.state.inStory = true;
+        let index = 0;
+
+        const storyOverlay = document.getElementById('story-overlay');
+        const storyText = document.getElementById('story-text');
+        const storyNext = document.getElementById('story-next');
+
+        storyOverlay.classList.remove('hidden');
+
+        const showNext = () => {
+            if (index < storyLines.length) {
+                storyText.textContent = storyLines[index];
+                index++;
+            } else {
+                storyOverlay.classList.add('hidden');
+                this.state.inStory = false;
+                if (callback) callback();
+            }
+        };
+
+        storyNext.onclick = showNext;
+        showNext();
     }
 
     setupCanvas() {
         const updateSize = () => {
-            const container = document.getElementById('main-area');
-            const maxWidth = Math.min(800, window.innerWidth - 280);
-            const maxHeight = Math.min(480, window.innerHeight - 250);
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            const isTablet = screenWidth >= 600 && screenWidth <= 1024;
+            const isLandscape = screenWidth > screenHeight;
 
-            this.canvas.width = maxWidth;
-            this.canvas.height = maxHeight;
+            let maxWidth, maxHeight;
 
-            this.config.viewportTilesX = Math.floor(maxWidth / this.config.tileSize);
-            this.config.viewportTilesY = Math.floor(maxHeight / this.config.tileSize);
+            if (isTablet) {
+                if (isLandscape) {
+                    // iPad landscape: side panel visible
+                    maxWidth = Math.min(screenWidth - 290, 700);
+                    maxHeight = Math.min(screenHeight - 280, 400);
+                } else {
+                    // iPad portrait: full width, more height for game
+                    maxWidth = Math.min(screenWidth - 30, 800);
+                    maxHeight = Math.min(screenHeight - 450, 450);
+                }
+            } else if (screenWidth <= 600) {
+                // Mobile
+                maxWidth = screenWidth - 20;
+                maxHeight = Math.min(screenHeight - 350, 350);
+            } else {
+                // Desktop
+                maxWidth = Math.min(800, screenWidth - 280);
+                maxHeight = Math.min(480, screenHeight - 250);
+            }
+
+            this.canvas.width = Math.max(300, maxWidth);
+            this.canvas.height = Math.max(250, maxHeight);
+
+            // Adjust tile size for better view on tablets
+            if (isTablet) {
+                this.config.tileSize = isLandscape ? 36 : 38;
+            } else if (screenWidth <= 600) {
+                this.config.tileSize = 35;
+            } else {
+                this.config.tileSize = 40;
+            }
+
+            this.config.viewportTilesX = Math.floor(this.canvas.width / this.config.tileSize);
+            this.config.viewportTilesY = Math.floor(this.canvas.height / this.config.tileSize);
 
             // 小地图
-            this.minimapCanvas.width = this.minimapCanvas.offsetWidth;
-            this.minimapCanvas.height = 120;
+            this.minimapCanvas.width = this.minimapCanvas.offsetWidth || 200;
+            this.minimapCanvas.height = isTablet ? 100 : 120;
         };
 
         updateSize();
         window.addEventListener('resize', updateSize);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateSize, 100);
+        });
     }
 
     // ==================== 迷宫生成 ====================
@@ -91,6 +164,8 @@ class Game {
         this.entities = [];
         this.items = [];
         this.explored = [];
+
+        const chapter = CHAPTERS[this.state.chapter];
 
         // 初始化迷宫（全墙）
         for (let y = 0; y < this.config.mazeHeight; y++) {
@@ -102,11 +177,15 @@ class Game {
             }
         }
 
-        // 使用递归回溯算法生成迷宫
-        this.carveMaze(1, 1);
-
-        // 创建一些房间
-        this.createRooms();
+        // 根据章节生成不同地图
+        if (chapter.mapType === 'surface') {
+            this.generateSurfaceMap();
+        } else {
+            // 使用递归回溯算法生成迷宫
+            this.carveMaze(1, 1);
+            // 创建一些房间
+            this.createRooms();
+        }
 
         // 放置玩家
         this.player.x = 1;
@@ -116,8 +195,12 @@ class Game {
         // 放置楼梯
         this.placeStairs();
 
-        // 生成宝可梦
-        this.spawnPokemon();
+        // 根据章节生成不同敌人
+        if (this.state.chapter === 1) {
+            this.spawnPokemon();
+        } else {
+            this.spawnChapter2Enemies();
+        }
 
         // 生成道具
         this.spawnItems();
@@ -125,7 +208,89 @@ class Game {
         // 重置buff
         this.player.buffs = { attack: 0, defense: 0 };
 
-        this.addMessage(`到达第 ${this.state.floor} 层！`, "system");
+        const chapterName = chapter.name.split('：')[0];
+        this.addMessage(`${chapterName} - 第 ${this.state.floor} 层`, "system");
+
+        // 处理流血状态
+        if (this.player.bleeding) {
+            this.player.bleedingTurns--;
+            const bleedDamage = 3;
+            this.player.hp -= bleedDamage;
+            this.addMessage(`流血！受到 ${bleedDamage} 点伤害！`, "battle");
+            if (this.player.bleedingTurns <= 0) {
+                this.player.bleeding = false;
+                this.addMessage("流血停止了。", "system");
+            }
+        }
+
+        this.updatePlayerStats();
+    }
+
+    generateSurfaceMap() {
+        // 地面世界：更开阔的地图，有废墟和毒沼
+        for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+            for (let x = 1; x < this.config.mazeWidth - 1; x++) {
+                // 70%概率是通道
+                if (Math.random() < 0.7) {
+                    this.maze[y][x] = 0;
+                }
+            }
+        }
+
+        // 创建一些废墟（墙壁群）
+        const numRuins = 3 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < numRuins; i++) {
+            const rx = 3 + Math.floor(Math.random() * (this.config.mazeWidth - 6));
+            const ry = 3 + Math.floor(Math.random() * (this.config.mazeHeight - 6));
+            const rw = 2 + Math.floor(Math.random() * 3);
+            const rh = 2 + Math.floor(Math.random() * 3);
+
+            for (let y = ry; y < ry + rh && y < this.config.mazeHeight - 1; y++) {
+                for (let x = rx; x < rx + rw && x < this.config.mazeWidth - 1; x++) {
+                    if (Math.random() < 0.6) {
+                        this.maze[y][x] = 1;
+                    }
+                }
+            }
+        }
+
+        // 确保起点附近有通路
+        for (let y = 0; y < 4; y++) {
+            for (let x = 0; x < 4; x++) {
+                if (y > 0 && x > 0) {
+                    this.maze[y][x] = 0;
+                }
+            }
+        }
+    }
+
+    spawnChapter2Enemies() {
+        const floor = this.state.floor;
+        const numEnemies = 6 + Math.floor(floor * 0.5);
+
+        // 放置僵尸
+        const numZombies = Math.floor(numEnemies * 0.4);
+        for (let i = 0; i < numZombies; i++) {
+            const zombie = ZOMBIE_DATA[Math.floor(Math.random() * ZOMBIE_DATA.length)];
+            this.placePokemon(zombie);
+        }
+
+        // 放置污染宝可梦
+        const numPolluted = Math.floor(numEnemies * 0.4);
+        for (let i = 0; i < numPolluted; i++) {
+            const polluted = POLLUTED_POKEMON_DATA[Math.floor(Math.random() * POLLUTED_POKEMON_DATA.length)];
+            this.placePokemon(polluted);
+        }
+
+        // 放置治疗者
+        const healer = SURFACE_HEALERS[Math.floor(Math.random() * SURFACE_HEALERS.length)];
+        this.placePokemon(healer);
+
+        // 偶尔还有普通商店
+        if (Math.random() < 0.5) {
+            const shopPokemon = POKEMON_DATA.filter(p => p.type === 'shop');
+            this.placePokemon(shopPokemon[Math.floor(Math.random() * shopPokemon.length)]);
+        }
     }
 
     carveMaze(x, y) {
@@ -244,6 +409,15 @@ class Game {
     spawnItems() {
         const numItems = 3 + Math.floor(Math.random() * 4);
 
+        // 根据章节选择可用道具池
+        let itemPool = [...ALL_ITEMS];
+        let equipPool = [...EQUIPMENT_DATA];
+
+        if (this.state.chapter >= 2) {
+            itemPool = [...itemPool, ...CHAPTER2_ITEMS.filter(i => i.type === 'consumable')];
+            equipPool = [...equipPool, ...CHAPTER2_ITEMS.filter(i => i.type === 'equipment')];
+        }
+
         for (let i = 0; i < numItems; i++) {
             // 根据稀有度随机选择道具
             const roll = Math.random();
@@ -251,24 +425,24 @@ class Game {
 
             if (roll < 0.5) {
                 // 普通道具
-                const common = ALL_ITEMS.filter(i => i.rarity === 1);
+                const common = itemPool.filter(i => i.rarity === 1);
                 item = common[Math.floor(Math.random() * common.length)];
             } else if (roll < 0.8) {
                 // 稀有道具
-                const rare = ALL_ITEMS.filter(i => i.rarity === 2);
+                const rare = itemPool.filter(i => i.rarity === 2);
                 item = rare[Math.floor(Math.random() * rare.length)];
             } else {
                 // 非常稀有
-                const veryRare = ALL_ITEMS.filter(i => i.rarity >= 3);
+                const veryRare = itemPool.filter(i => i.rarity >= 3);
                 item = veryRare[Math.floor(Math.random() * veryRare.length)];
             }
 
-            this.placeItem(item);
+            if (item) this.placeItem(item);
         }
 
         // 偶尔放置装备
         if (Math.random() < 0.3) {
-            const equip = EQUIPMENT_DATA[Math.floor(Math.random() * EQUIPMENT_DATA.length)];
+            const equip = equipPool[Math.floor(Math.random() * equipPool.length)];
             this.placeItem(equip);
         }
     }
@@ -407,7 +581,7 @@ class Game {
     }
 
     interactWithEntity(entity) {
-        if (entity.type === 'hostile') {
+        if (entity.type === 'hostile' || entity.type === 'zombie' || entity.type === 'polluted') {
             this.startBattle(entity);
         } else if (entity.type === 'shop') {
             this.openShop(entity);
@@ -425,8 +599,16 @@ class Game {
         const battleOverlay = document.getElementById('battle-overlay');
         battleOverlay.classList.remove('hidden');
 
-        // 显示敌人信息
-        document.getElementById('enemy-sprite').textContent = enemy.emoji;
+        // 显示敌人像素精灵
+        const spriteCanvas = document.getElementById('enemy-sprite-canvas');
+        const spriteCtx = spriteCanvas.getContext('2d');
+        spriteCtx.clearRect(0, 0, 96, 96);
+
+        const spriteData = POKEMON_SPRITES[enemy.id];
+        if (spriteData) {
+            drawSprite(spriteCtx, spriteData, 0, 0, 96);
+        }
+
         document.getElementById('enemy-name').textContent = `${enemy.name} Lv.${this.state.floor + Math.floor(enemy.exp / 30)}`;
         this.updateEnemyHpBar();
 
@@ -523,6 +705,34 @@ class Game {
 
         this.player.hp -= damage;
         this.addBattleLog(`${this.currentEnemy.name} 攻击！你受到 ${damage} 点伤害！`);
+
+        // 僵尸攻击：25%概率流血
+        if (this.currentEnemy.type === 'zombie' && this.currentEnemy.bleedChance) {
+            if (Math.random() < this.currentEnemy.bleedChance && !this.player.bleeding) {
+                this.player.bleeding = true;
+                this.player.bleedingTurns = 5;
+                this.addBattleLog(`你被咬伤了！开始流血！`);
+            }
+        }
+
+        // 污染宝可梦攻击：增加污染值
+        if ((this.currentEnemy.type === 'polluted' || this.currentEnemy.pollutionDamage) && this.state.chapter >= 2) {
+            let pollutionDamage = this.currentEnemy.pollutionDamage || 5;
+
+            // 防毒面具减少污染伤害
+            const pollutionResist = this.player.equipment.accessory?.stats?.pollutionResist || 0;
+            pollutionDamage = Math.floor(pollutionDamage * (1 - pollutionResist));
+
+            this.player.pollution = Math.min(this.player.maxPollution, this.player.pollution + pollutionDamage);
+            this.addBattleLog(`污染侵蚀！污染值+${pollutionDamage}`);
+
+            // 污染值满了瞬间死亡
+            if (this.player.pollution >= this.player.maxPollution) {
+                this.addBattleLog(`污染值已满！你被完全污染了...`);
+                this.player.hp = 0;
+            }
+        }
+
         this.updatePlayerStats();
 
         if (this.player.hp <= 0) {
@@ -688,7 +898,16 @@ class Game {
         const dialogOverlay = document.getElementById('dialog-overlay');
         dialogOverlay.classList.remove('hidden');
 
-        document.getElementById('dialog-portrait').textContent = healer.emoji;
+        // 显示像素精灵
+        const portraitCanvas = document.getElementById('dialog-portrait-canvas');
+        const portraitCtx = portraitCanvas.getContext('2d');
+        portraitCtx.clearRect(0, 0, 80, 80);
+
+        const spriteData = POKEMON_SPRITES[healer.id];
+        if (spriteData) {
+            drawSprite(portraitCtx, spriteData, 0, 0, 80);
+        }
+
         document.getElementById('dialog-name').textContent = healer.name;
 
         const dialogue = healer.dialogues[Math.floor(Math.random() * healer.dialogues.length)];
@@ -710,7 +929,22 @@ class Game {
                 this.player.hp = Math.min(this.player.maxHp, this.player.hp + healed);
             }
 
-            this.addMessage(`${healer.name} 治愈了你！恢复了 ${healed} HP！`, "item");
+            let msg = `${healer.name} 治愈了你！恢复了 ${healed} HP！`;
+
+            // 净化师可以降低污染值
+            if (healer.cleansePollution && this.player.pollution > 0) {
+                this.player.pollution = Math.max(0, this.player.pollution - healer.cleansePollution);
+                msg += ` 污染值-${healer.cleansePollution}`;
+            }
+
+            // 医生可以止血
+            if (healer.stopBleeding && this.player.bleeding) {
+                this.player.bleeding = false;
+                this.player.bleedingTurns = 0;
+                msg += ` 流血已止住！`;
+            }
+
+            this.addMessage(msg, "item");
             this.updatePlayerStats();
             this.closeDialog();
         };
@@ -817,6 +1051,43 @@ class Game {
                 this.addMessage("复活种子会在你倒下时自动发动！", "system");
                 return; // 不消耗
 
+            // 第二章新道具效果
+            case 'cleansePollution':
+                this.player.pollution = Math.max(0, this.player.pollution - effect.value);
+                this.addMessage(`使用 ${item.name}，污染值-${effect.value}！`, "item");
+                break;
+
+            case 'fullCleansePollution':
+                this.player.pollution = 0;
+                this.addMessage(`使用 ${item.name}，污染值完全清除！`, "item");
+                break;
+
+            case 'stopBleeding':
+                this.player.bleeding = false;
+                this.player.bleedingTurns = 0;
+                if (effect.heal) {
+                    this.player.hp = Math.min(this.player.maxHp, this.player.hp + effect.heal);
+                }
+                this.addMessage(`使用 ${item.name}，止血成功！恢复${effect.heal || 0}HP`, "item");
+                break;
+
+            case 'antiZombie':
+                if (this.state.inBattle && this.currentEnemy && this.currentEnemy.type === 'zombie') {
+                    this.currentEnemy.currentHp -= effect.value;
+                    this.addBattleLog(`圣水灼烧僵尸！造成 ${effect.value} 点伤害！`);
+                    this.updateEnemyHpBar();
+                    if (this.currentEnemy.currentHp <= 0) {
+                        this.battleVictory();
+                    }
+                } else if (this.state.inBattle) {
+                    this.addBattleLog(`圣水对非僵尸敌人无效！`);
+                    return; // 不消耗
+                } else {
+                    this.addMessage("圣水只能在战斗中对僵尸使用！", "system");
+                    return;
+                }
+                break;
+
             default:
                 this.addMessage(`使用了 ${item.name}！`, "item");
         }
@@ -870,13 +1141,40 @@ class Game {
     // ==================== 楼层系统 ====================
 
     nextFloor() {
-        this.state.floor++;
+        const chapter = CHAPTERS[this.state.chapter];
 
-        if (this.state.floor > 99) {
+        // 检查是否到达章节结束
+        if (this.state.floor >= chapter.floors) {
+            this.endChapter();
+            return;
+        }
+
+        this.state.floor++;
+        this.generateFloor();
+    }
+
+    endChapter() {
+        const chapter = CHAPTERS[this.state.chapter];
+
+        if (chapter.endStory) {
+            this.showStory(chapter.endStory, () => {
+                this.startNextChapter();
+            });
+        } else {
+            this.startNextChapter();
+        }
+    }
+
+    startNextChapter() {
+        this.state.chapter++;
+        this.state.floor = 1;
+
+        if (!CHAPTERS[this.state.chapter]) {
             this.victory();
             return;
         }
 
+        this.showChapterIntro();
         this.generateFloor();
     }
 
@@ -918,6 +1216,30 @@ class Game {
         document.getElementById('exp-display').textContent = `EXP: ${this.player.exp}/${this.player.expToNext}`;
         document.getElementById('gold-display').textContent = `金币: ${this.player.gold}`;
         document.getElementById('floor-display').textContent = `楼层: ${this.state.floor}F`;
+
+        // 章节显示
+        const chapter = CHAPTERS[this.state.chapter];
+        document.getElementById('chapter-display').textContent = chapter ? chapter.name.split('：')[0] : '';
+
+        // 污染值显示（只在第二章显示）
+        const pollutionContainer = document.getElementById('pollution-container');
+        if (this.state.chapter >= 2) {
+            pollutionContainer.classList.remove('hidden');
+            const pollutionPercent = (this.player.pollution / this.player.maxPollution) * 100;
+            document.getElementById('pollution-fill').style.width = `${pollutionPercent}%`;
+            document.getElementById('pollution-value').textContent = `${this.player.pollution}/${this.player.maxPollution}`;
+        } else {
+            pollutionContainer.classList.add('hidden');
+        }
+
+        // 流血状态显示
+        const bleedingStatus = document.getElementById('bleeding-status');
+        if (this.player.bleeding) {
+            bleedingStatus.classList.remove('hidden');
+            bleedingStatus.textContent = `🩸流血(${this.player.bleedingTurns})`;
+        } else {
+            bleedingStatus.classList.add('hidden');
+        }
     }
 
     updateInventoryUI() {
@@ -1050,23 +1372,57 @@ class Game {
         // 创建移动控制按钮
         const controls = document.createElement('div');
         controls.id = 'mobile-controls';
-        controls.innerHTML = `
-            <div class="control-row">
-                <button class="ctrl-btn" data-dir="up">↑</button>
-            </div>
-            <div class="control-row">
-                <button class="ctrl-btn" data-dir="left">←</button>
-                <button class="ctrl-btn action" data-action="pickup">拾取</button>
-                <button class="ctrl-btn" data-dir="right">→</button>
-            </div>
-            <div class="control-row">
-                <button class="ctrl-btn" data-dir="down">↓</button>
-            </div>
-            <div class="control-row">
-                <button class="ctrl-btn action" data-action="attack">攻击</button>
-                <button class="ctrl-btn action" data-action="item">道具</button>
-            </div>
-        `;
+
+        // Check if tablet for different layout
+        const isTablet = window.innerWidth >= 600 && window.innerWidth <= 1024;
+
+        if (isTablet) {
+            // Tablet layout: D-pad left, actions right
+            controls.innerHTML = `
+                <div class="tablet-controls">
+                    <div class="dpad-container">
+                        <div class="control-row">
+                            <button class="ctrl-btn" data-dir="up">↑</button>
+                        </div>
+                        <div class="control-row">
+                            <button class="ctrl-btn" data-dir="left">←</button>
+                            <button class="ctrl-btn" data-dir="right">→</button>
+                        </div>
+                        <div class="control-row">
+                            <button class="ctrl-btn" data-dir="down">↓</button>
+                        </div>
+                    </div>
+                    <div class="action-container">
+                        <div class="control-row">
+                            <button class="ctrl-btn action" data-action="attack">攻击</button>
+                            <button class="ctrl-btn action" data-action="item">道具</button>
+                        </div>
+                        <div class="control-row">
+                            <button class="ctrl-btn action" data-action="pickup">拾取</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Mobile layout: centered stacked
+            controls.innerHTML = `
+                <div class="control-row">
+                    <button class="ctrl-btn" data-dir="up">↑</button>
+                </div>
+                <div class="control-row">
+                    <button class="ctrl-btn" data-dir="left">←</button>
+                    <button class="ctrl-btn action" data-action="pickup">拾取</button>
+                    <button class="ctrl-btn" data-dir="right">→</button>
+                </div>
+                <div class="control-row">
+                    <button class="ctrl-btn" data-dir="down">↓</button>
+                </div>
+                <div class="control-row">
+                    <button class="ctrl-btn action" data-action="attack">攻击</button>
+                    <button class="ctrl-btn action" data-action="item">道具</button>
+                </div>
+            `;
+        }
         document.body.appendChild(controls);
 
         // 移动按钮
@@ -1227,24 +1583,36 @@ class Game {
 
             // 背景圆圈表示类型
             ctx.beginPath();
-            ctx.arc(ex + tileSize / 2, ey + tileSize / 2, tileSize / 2 - 4, 0, Math.PI * 2);
+            ctx.arc(ex + tileSize / 2, ey + tileSize / 2, tileSize / 2 - 2, 0, Math.PI * 2);
 
             if (entity.type === 'shop') {
-                ctx.fillStyle = 'rgba(107, 203, 119, 0.3)';
+                ctx.fillStyle = 'rgba(107, 203, 119, 0.4)';
             } else if (entity.type === 'healer') {
-                ctx.fillStyle = 'rgba(255, 107, 157, 0.3)';
+                ctx.fillStyle = 'rgba(255, 107, 157, 0.4)';
             } else if (entity.behavior === 'runner') {
-                ctx.fillStyle = 'rgba(255, 217, 61, 0.3)';
+                ctx.fillStyle = 'rgba(255, 217, 61, 0.4)';
             } else {
-                ctx.fillStyle = 'rgba(255, 107, 107, 0.3)';
+                ctx.fillStyle = 'rgba(255, 107, 107, 0.4)';
             }
             ctx.fill();
 
-            // 绘制emoji
-            ctx.font = `${tileSize - 10}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(entity.emoji, ex + tileSize / 2, ey + tileSize / 2);
+            // 绘制像素精灵
+            const spriteData = POKEMON_SPRITES[entity.id];
+            if (spriteData) {
+                // 使用缓存的精灵
+                const cachedSprite = getCachedSprite(entity.id, tileSize - 4);
+                if (cachedSprite) {
+                    ctx.drawImage(cachedSprite, ex + 2, ey + 2);
+                } else {
+                    drawSprite(ctx, spriteData, ex + 2, ey + 2, tileSize - 4);
+                }
+            } else {
+                // 回退到emoji
+                ctx.font = `${tileSize - 10}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(entity.emoji, ex + tileSize / 2, ey + tileSize / 2);
+            }
         }
 
         // 绘制玩家（火柴人）

@@ -597,6 +597,301 @@ function generateRandomDialogue(type) {
     return dialogue;
 }
 
+// ==================== 章节系统 ====================
+
+const CHAPTERS = {
+    1: {
+        name: "第一章：地宫探索",
+        description: "你是一个火柴人，醒来时发现自己在一个神秘的地宫中...",
+        floors: 50,
+        endStory: [
+            "终于...找到出口了！",
+            "你推开沉重的石门，刺眼的光芒让你暂时失明...",
+            "当你睁开眼睛时，你看到的景象让你震惊...",
+            "整个世界...都被污染了！",
+            "天空是灰紫色的，空气中弥漫着诡异的雾气...",
+            "远处的城市已经成为废墟，到处都是被污染的宝可梦...",
+            "还有...僵尸！",
+            "你握紧拳头，暗下决心：",
+            "「我要净化这个世界！」"
+        ],
+        mapType: "dungeon"
+    },
+    2: {
+        name: "第二章：污染荒野",
+        description: "地面世界已被污染，你必须找到净化之源...",
+        floors: 100,
+        endStory: [
+            "恭喜你净化了荒野！",
+            "但这只是开始..."
+        ],
+        mapType: "surface"
+    }
+};
+
+// ==================== 僵尸数据 ====================
+
+const ZOMBIE_DATA = [
+    {
+        id: 101, name: "普通僵尸", emoji: "🧟", type: "zombie",
+        hp: 60, attack: 25, defense: 5, exp: 45, gold: 20,
+        behavior: "aggressive",
+        bleedChance: 0.25,
+        dialogues: [
+            "嗯...啊...",
+            "肉...要吃肉...",
+            "加入我们...",
+            "脑子...好饿..."
+        ]
+    },
+    {
+        id: 102, name: "狂暴僵尸", emoji: "🧟‍♂️", type: "zombie",
+        hp: 80, attack: 35, defense: 8, exp: 60, gold: 30,
+        behavior: "aggressive",
+        bleedChance: 0.35,
+        dialogues: [
+            "啊啊啊啊！！",
+            "撕碎你！",
+            "杀杀杀！",
+            "血...更多的血！"
+        ]
+    },
+    {
+        id: 103, name: "腐烂僵尸", emoji: "🦠", type: "zombie",
+        hp: 50, attack: 20, defense: 3, exp: 40, gold: 15,
+        behavior: "aggressive",
+        bleedChance: 0.20,
+        pollutionDamage: 10,
+        dialogues: [
+            "咕噜噜...",
+            "腐烂...扩散...",
+            "污染...一切...",
+            "加入腐烂..."
+        ]
+    },
+    {
+        id: 104, name: "巨型僵尸", emoji: "👹", type: "zombie",
+        hp: 150, attack: 45, defense: 15, exp: 100, gold: 50,
+        behavior: "aggressive",
+        bleedChance: 0.40,
+        dialogues: [
+            "吼！！！",
+            "碾碎！",
+            "小虫子...",
+            "无处可逃！"
+        ]
+    },
+    {
+        id: 105, name: "幽灵僵尸", emoji: "👻", type: "zombie",
+        hp: 40, attack: 30, defense: 2, exp: 55, gold: 25,
+        behavior: "aggressive",
+        bleedChance: 0.15,
+        dialogues: [
+            "嘻嘻嘻...",
+            "看不见我...",
+            "已经死过一次了...",
+            "来陪我吧..."
+        ]
+    }
+];
+
+// ==================== 污染宝可梦数据 ====================
+
+const POLLUTED_POKEMON_DATA = [
+    {
+        id: 201, name: "污染皮卡丘", emoji: "⚡", type: "polluted",
+        hp: 50, attack: 25, defense: 12, exp: 40, gold: 20,
+        behavior: "aggressive",
+        pollutionDamage: 8,
+        dialogues: [
+            "皮...卡...痛苦...",
+            "救...救我...",
+            "污染...好痛...",
+            "杀了我...求你..."
+        ]
+    },
+    {
+        id: 202, name: "污染小火龙", emoji: "🔥", type: "polluted",
+        hp: 55, attack: 28, defense: 10, exp: 45, gold: 22,
+        behavior: "aggressive",
+        pollutionDamage: 10,
+        dialogues: [
+            "火焰...变成黑色了...",
+            "好冷...明明在燃烧...",
+            "污染的火焰...",
+            "净化我..."
+        ]
+    },
+    {
+        id: 203, name: "污染杰尼龟", emoji: "🐢", type: "polluted",
+        hp: 60, attack: 22, defense: 18, exp: 42, gold: 18,
+        behavior: "aggressive",
+        pollutionDamage: 7,
+        dialogues: [
+            "水...都是毒...",
+            "壳裂开了...",
+            "杰尼...不想这样...",
+            "污水...好苦..."
+        ]
+    },
+    {
+        id: 204, name: "污染妙蛙种子", emoji: "🌱", type: "polluted",
+        hp: 65, attack: 24, defense: 14, exp: 44, gold: 20,
+        behavior: "aggressive",
+        pollutionDamage: 12,
+        dialogues: [
+            "花...枯萎了...",
+            "种子在腐烂...",
+            "大自然...被玷污了...",
+            "毒藤...控制不住..."
+        ]
+    },
+    {
+        id: 205, name: "污染鬼斯", emoji: "👻", type: "polluted",
+        hp: 45, attack: 35, defense: 6, exp: 50, gold: 25,
+        behavior: "aggressive",
+        pollutionDamage: 15,
+        dialogues: [
+            "双重死亡...",
+            "污染让我更强...",
+            "嘿嘿...加入黑暗...",
+            "诅咒...污染..."
+        ]
+    },
+    {
+        id: 206, name: "污染超音蝠", emoji: "🦇", type: "polluted",
+        hp: 40, attack: 22, defense: 8, exp: 35, gold: 15,
+        behavior: "aggressive",
+        pollutionDamage: 6,
+        dialogues: [
+            "吱...吱...",
+            "翅膀...好重...",
+            "看不见了...",
+            "污染的超声波..."
+        ]
+    },
+    {
+        id: 207, name: "污染臭泥", emoji: "🟣", type: "polluted",
+        hp: 70, attack: 30, defense: 12, exp: 55, gold: 28,
+        behavior: "aggressive",
+        pollutionDamage: 20,
+        dialogues: [
+            "更臭了...更毒了...",
+            "污染是美味的...",
+            "吸收污染...",
+            "融化一切..."
+        ]
+    },
+    {
+        id: 208, name: "污染腕力", emoji: "💪", type: "polluted",
+        hp: 80, attack: 40, defense: 12, exp: 60, gold: 30,
+        behavior: "aggressive",
+        pollutionDamage: 9,
+        dialogues: [
+            "力量...失控...",
+            "肌肉在溶解...",
+            "好痛...但更强了...",
+            "污染之力！"
+        ]
+    }
+];
+
+// ==================== 第二章新道具 ====================
+
+const CHAPTER2_ITEMS = [
+    {
+        id: "antidote",
+        name: "净化药剂",
+        emoji: "💧",
+        type: "consumable",
+        description: "降低30点污染值",
+        effect: { type: "cleansePollution", value: 30 },
+        price: 100,
+        rarity: 2
+    },
+    {
+        id: "purifyOrb",
+        name: "净化之珠",
+        emoji: "🔵",
+        type: "consumable",
+        description: "完全清除污染值",
+        effect: { type: "fullCleansePollution" },
+        price: 300,
+        rarity: 4
+    },
+    {
+        id: "bandage",
+        name: "绷带",
+        emoji: "🩹",
+        type: "consumable",
+        description: "止血并恢复20HP",
+        effect: { type: "stopBleeding", heal: 20 },
+        price: 60,
+        rarity: 1
+    },
+    {
+        id: "gasMask",
+        name: "防毒面具",
+        emoji: "😷",
+        type: "equipment",
+        slot: "accessory",
+        description: "减少50%污染伤害",
+        stats: { pollutionResist: 0.5 },
+        price: 400,
+        rarity: 3
+    },
+    {
+        id: "holyWater",
+        name: "圣水",
+        emoji: "✨",
+        type: "consumable",
+        description: "对僵尸造成100点伤害",
+        effect: { type: "antiZombie", value: 100 },
+        price: 150,
+        rarity: 3
+    },
+    {
+        id: "purifiedSword",
+        name: "净化之剑",
+        emoji: "🗡️",
+        type: "equipment",
+        slot: "weapon",
+        description: "对污染敌人伤害+50%",
+        stats: { attack: 15, pollutionBonus: 0.5 },
+        price: 500,
+        rarity: 4
+    }
+];
+
+// ==================== 地面世界治疗者 ====================
+
+const SURFACE_HEALERS = [
+    {
+        id: 301, name: "净化师", emoji: "🧙", type: "healer",
+        dialogues: [
+            "我能感受到你体内的污染...",
+            "让我帮你净化！",
+            "净化之光！",
+            "污染是可以被驱除的！",
+            "坚持住，你做得很好！"
+        ],
+        healAmount: 0.8,
+        cleansePollution: 20
+    },
+    {
+        id: 302, name: "幸存医生", emoji: "👨‍⚕️", type: "healer",
+        dialogues: [
+            "我是末日前的医生...",
+            "让我检查一下你的伤口",
+            "止血很重要！",
+            "这个世界还有希望！",
+            "你是我见过最勇敢的人！"
+        ],
+        healAmount: 1.0,
+        stopBleeding: true
+    }
+];
+
 // ==================== 导出数据 ====================
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -606,6 +901,11 @@ if (typeof module !== 'undefined' && module.exports) {
         EQUIPMENT_DATA,
         ALL_ITEMS,
         DUNGEON_ITEMS,
+        CHAPTERS,
+        ZOMBIE_DATA,
+        POLLUTED_POKEMON_DATA,
+        CHAPTER2_ITEMS,
+        SURFACE_HEALERS,
         generateRandomDialogue
     };
 }
