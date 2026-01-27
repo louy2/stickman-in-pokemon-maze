@@ -62,11 +62,58 @@ class Game {
 
     init() {
         this.setupCanvas();
+        this.setupAudioControls();
         this.generateFloor();
         this.setupControls();
         this.setupMobileControls();
         this.gameLoop();
         this.showChapterIntro();
+        // Start background music after first user interaction
+        this.startMusicOnInteraction();
+    }
+
+    setupAudioControls() {
+        const musicBtn = document.getElementById('btn-music');
+        const sfxBtn = document.getElementById('btn-sfx');
+
+        musicBtn.onclick = () => {
+            const enabled = audioManager.toggleMusic();
+            musicBtn.classList.toggle('muted', !enabled);
+            musicBtn.textContent = enabled ? '🎵' : '🔇';
+            if (enabled) {
+                this.playContextMusic();
+            }
+        };
+
+        sfxBtn.onclick = () => {
+            const enabled = audioManager.toggleSFX();
+            sfxBtn.classList.toggle('muted', !enabled);
+            sfxBtn.textContent = enabled ? '🔊' : '🔈';
+        };
+    }
+
+    startMusicOnInteraction() {
+        const startMusic = () => {
+            audioManager.init();
+            this.playContextMusic();
+            document.removeEventListener('click', startMusic);
+            document.removeEventListener('touchstart', startMusic);
+            document.removeEventListener('keydown', startMusic);
+        };
+
+        document.addEventListener('click', startMusic);
+        document.addEventListener('touchstart', startMusic);
+        document.addEventListener('keydown', startMusic);
+    }
+
+    playContextMusic() {
+        if (this.state.inBattle && this.currentEnemy?.isBoss) {
+            audioManager.playMusic('boss');
+        } else if (this.state.chapter === 1) {
+            audioManager.playMusic('dungeon');
+        } else {
+            audioManager.playMusic('surface');
+        }
     }
 
     showChapterIntro() {
@@ -717,9 +764,11 @@ class Game {
         const battleBox = document.getElementById('battle-box');
         battleOverlay.classList.remove('hidden');
 
-        // BOSS战斗特殊样式
+        // BOSS战斗特殊样式和音乐
         if (enemy.isBoss || enemy.type === 'boss') {
             battleBox.classList.add('boss-battle');
+            audioManager.playSFX('boss');
+            audioManager.playMusic('boss');
         } else {
             battleBox.classList.remove('boss-battle');
         }
@@ -782,6 +831,8 @@ class Game {
     }
 
     battleAttack() {
+        audioManager.playSFX('attack');
+
         const totalAttack = this.player.attack + this.player.buffs.attack +
             (this.player.equipment.weapon?.stats?.attack || 0);
         const damage = Math.max(1, totalAttack - this.currentEnemy.defense + Math.floor(Math.random() * 5));
@@ -798,6 +849,8 @@ class Game {
     }
 
     battleSkill() {
+        audioManager.playSFX('attack');
+
         // 技能攻击（消耗更多但伤害更高）
         const totalAttack = this.player.attack + this.player.buffs.attack +
             (this.player.equipment.weapon?.stats?.attack || 0);
@@ -881,6 +934,7 @@ class Game {
         const damage = Math.max(1, enemyAttack - totalDefense + Math.floor(Math.random() * 3));
 
         this.player.hp -= damage;
+        audioManager.playSFX('hit');
         this.addBattleLog(`${enemy.name} 攻击！你受到 ${damage} 点伤害！`);
 
         // 僵尸攻击：流血概率
@@ -991,6 +1045,8 @@ class Game {
     }
 
     battleVictory() {
+        audioManager.playSFX('victory');
+
         const enemy = this.currentEnemy;
         const isBoss = enemy.isBoss || enemy.type === 'boss';
         const exp = enemy.exp || 20;
@@ -1036,6 +1092,7 @@ class Game {
             this.player.attack += 3;
             this.player.defense += 2;
             this.player.expToNext = Math.floor(this.player.expToNext * 1.3);
+            audioManager.playSFX('levelup');
             this.addBattleLog(`升级！现在是 Lv.${this.player.level}！`);
             this.addMessage(`升级到 Lv.${this.player.level}！`, "system");
         }
@@ -1070,6 +1127,8 @@ class Game {
         this.currentEnemy = null;
         document.getElementById('battle-overlay').classList.add('hidden');
         this.updatePlayerStats();
+        // Restore context music
+        this.playContextMusic();
     }
 
     // ==================== 商店系统 ====================
@@ -1203,6 +1262,7 @@ class Game {
                 this.player.hp = Math.min(this.player.maxHp, this.player.hp + healed);
             }
 
+            audioManager.playSFX('heal');
             let msg = `${healer.name} 治愈了你！恢复了 ${healed} HP！`;
 
             // 净化师可以降低污染值
@@ -1255,6 +1315,7 @@ class Game {
         this.player.inventory.push({ ...item });
         this.items = this.items.filter(i => i.x !== item.x || i.y !== item.y);
 
+        audioManager.playSFX('pickup');
         this.addMessage(`拾取了 ${item.emoji} ${item.name}！`, "item");
         this.updateInventoryUI();
     }
@@ -1423,6 +1484,7 @@ class Game {
             return;
         }
 
+        audioManager.playSFX('stairs');
         this.state.floor++;
         this.generateFloor();
     }
@@ -1456,6 +1518,8 @@ class Game {
 
     gameOver() {
         this.state.gameOver = true;
+        audioManager.playSFX('defeat');
+        audioManager.playMusic('gameover');
 
         const overlay = document.getElementById('gameover-overlay');
         overlay.classList.remove('hidden');
@@ -1468,6 +1532,8 @@ class Game {
 
     victory() {
         this.state.gameOver = true;
+        audioManager.playSFX('victory');
+        audioManager.playMusic('victory');
 
         const overlay = document.getElementById('gameover-overlay');
         overlay.classList.remove('hidden');
