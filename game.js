@@ -106,7 +106,10 @@ class Game {
             const screenWidth = window.innerWidth;
             const screenHeight = window.innerHeight;
             const isTablet = screenWidth >= 600 && screenWidth <= 1024;
+            const isPhone = screenWidth < 600;
             const isLandscape = screenWidth > screenHeight;
+            const isSmallPhone = screenWidth <= 380;
+            const isLargePhone = screenWidth > 414 && screenWidth < 600;
 
             let maxWidth, maxHeight;
 
@@ -120,24 +123,40 @@ class Game {
                     maxWidth = Math.min(screenWidth - 30, 800);
                     maxHeight = Math.min(screenHeight - 450, 450);
                 }
-            } else if (screenWidth <= 600) {
-                // Mobile
-                maxWidth = screenWidth - 20;
-                maxHeight = Math.min(screenHeight - 350, 350);
+            } else if (isPhone) {
+                if (isLandscape) {
+                    // iPhone landscape
+                    maxWidth = screenWidth - 20;
+                    maxHeight = Math.min(screenHeight - 180, 280);
+                } else {
+                    // iPhone portrait
+                    const controlsHeight = 200; // Space for touch controls
+                    const topUIHeight = isSmallPhone ? 100 : 120; // Top bar + messages
+                    maxWidth = screenWidth - 10;
+                    maxHeight = Math.min(screenHeight - controlsHeight - topUIHeight, isSmallPhone ? 280 : 320);
+                }
             } else {
                 // Desktop
                 maxWidth = Math.min(800, screenWidth - 280);
                 maxHeight = Math.min(480, screenHeight - 250);
             }
 
-            this.canvas.width = Math.max(300, maxWidth);
-            this.canvas.height = Math.max(250, maxHeight);
+            this.canvas.width = Math.max(280, maxWidth);
+            this.canvas.height = Math.max(200, maxHeight);
 
-            // Adjust tile size for better view on tablets
+            // Adjust tile size based on device
             if (isTablet) {
                 this.config.tileSize = isLandscape ? 36 : 38;
-            } else if (screenWidth <= 600) {
-                this.config.tileSize = 35;
+            } else if (isPhone) {
+                if (isLandscape) {
+                    this.config.tileSize = 28;
+                } else if (isSmallPhone) {
+                    this.config.tileSize = 32;
+                } else if (isLargePhone) {
+                    this.config.tileSize = 36;
+                } else {
+                    this.config.tileSize = 34;
+                }
             } else {
                 this.config.tileSize = 40;
             }
@@ -147,14 +166,19 @@ class Game {
 
             // 小地图
             this.minimapCanvas.width = this.minimapCanvas.offsetWidth || 200;
-            this.minimapCanvas.height = isTablet ? 100 : 120;
+            this.minimapCanvas.height = isTablet ? 100 : (isPhone ? 80 : 120);
         };
 
         updateSize();
         window.addEventListener('resize', updateSize);
         window.addEventListener('orientationchange', () => {
-            setTimeout(updateSize, 100);
+            // Delay to let iOS finish rotation animation
+            setTimeout(updateSize, 150);
         });
+        // Also handle iOS visual viewport changes
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateSize);
+        }
     }
 
     // ==================== 迷宫生成 ====================
@@ -1410,98 +1434,121 @@ class Game {
         const controls = document.createElement('div');
         controls.id = 'mobile-controls';
 
-        // Check if tablet for different layout
-        const isTablet = window.innerWidth >= 600 && window.innerWidth <= 1024;
+        const updateControlsLayout = () => {
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            const isTablet = screenWidth >= 600 && screenWidth <= 1024;
+            const isLandscape = screenWidth > screenHeight;
+            const isPhoneLandscape = screenWidth < 900 && screenHeight < 500 && isLandscape;
 
-        if (isTablet) {
-            // Tablet layout: D-pad left, actions right
-            controls.innerHTML = `
-                <div class="tablet-controls">
-                    <div class="dpad-container">
+            if (isTablet || isPhoneLandscape) {
+                // Tablet/Landscape layout: D-pad left, actions right
+                controls.innerHTML = `
+                    <div class="tablet-controls">
+                        <div class="dpad-container">
+                            <div class="control-row">
+                                <button class="ctrl-btn" data-dir="up">↑</button>
+                            </div>
+                            <div class="control-row">
+                                <button class="ctrl-btn" data-dir="left">←</button>
+                                <button class="ctrl-btn" data-dir="right">→</button>
+                            </div>
+                            <div class="control-row">
+                                <button class="ctrl-btn" data-dir="down">↓</button>
+                            </div>
+                        </div>
+                        <div class="action-container">
+                            <div class="control-row">
+                                <button class="ctrl-btn action" data-action="attack">攻击</button>
+                                <button class="ctrl-btn action" data-action="item">道具</button>
+                            </div>
+                            <div class="control-row">
+                                <button class="ctrl-btn action" data-action="pickup">拾取</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Phone portrait layout: centered stacked
+                controls.innerHTML = `
+                    <div class="phone-controls">
                         <div class="control-row">
                             <button class="ctrl-btn" data-dir="up">↑</button>
                         </div>
                         <div class="control-row">
                             <button class="ctrl-btn" data-dir="left">←</button>
+                            <button class="ctrl-btn action" data-action="pickup">拾取</button>
                             <button class="ctrl-btn" data-dir="right">→</button>
                         </div>
                         <div class="control-row">
                             <button class="ctrl-btn" data-dir="down">↓</button>
                         </div>
-                    </div>
-                    <div class="action-container">
-                        <div class="control-row">
+                        <div class="control-row action-row">
                             <button class="ctrl-btn action" data-action="attack">攻击</button>
                             <button class="ctrl-btn action" data-action="item">道具</button>
                         </div>
-                        <div class="control-row">
-                            <button class="ctrl-btn action" data-action="pickup">拾取</button>
-                        </div>
                     </div>
-                </div>
-            `;
-        } else {
-            // Mobile layout: centered stacked
-            controls.innerHTML = `
-                <div class="control-row">
-                    <button class="ctrl-btn" data-dir="up">↑</button>
-                </div>
-                <div class="control-row">
-                    <button class="ctrl-btn" data-dir="left">←</button>
-                    <button class="ctrl-btn action" data-action="pickup">拾取</button>
-                    <button class="ctrl-btn" data-dir="right">→</button>
-                </div>
-                <div class="control-row">
-                    <button class="ctrl-btn" data-dir="down">↓</button>
-                </div>
-                <div class="control-row">
-                    <button class="ctrl-btn action" data-action="attack">攻击</button>
-                    <button class="ctrl-btn action" data-action="item">道具</button>
-                </div>
-            `;
-        }
+                `;
+            }
+            // Rebind events after layout change
+            bindControlEvents();
+        };
+
+        const bindControlEvents = () => {
+            // 移动按钮
+            const dirButtons = controls.querySelectorAll('[data-dir]');
+            dirButtons.forEach(btn => {
+                const handleMove = () => {
+                    const dir = btn.dataset.dir;
+                    switch (dir) {
+                        case 'up': this.movePlayer(0, -1); break;
+                        case 'down': this.movePlayer(0, 1); break;
+                        case 'left': this.movePlayer(-1, 0); break;
+                        case 'right': this.movePlayer(1, 0); break;
+                    }
+                };
+
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleMove();
+                }, { passive: false });
+                btn.addEventListener('click', handleMove);
+            });
+
+            // 动作按钮
+            const actionButtons = controls.querySelectorAll('[data-action]');
+            actionButtons.forEach(btn => {
+                const handleAction = () => {
+                    const action = btn.dataset.action;
+                    switch (action) {
+                        case 'pickup': this.pickupItem(); break;
+                        case 'attack': this.attackNearby(); break;
+                        case 'item': this.useQuickItem(); break;
+                    }
+                };
+
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleAction();
+                }, { passive: false });
+                btn.addEventListener('click', handleAction);
+            });
+        };
+
         document.body.appendChild(controls);
+        updateControlsLayout();
 
-        // 移动按钮
-        const dirButtons = controls.querySelectorAll('[data-dir]');
-        dirButtons.forEach(btn => {
-            const handleMove = () => {
-                const dir = btn.dataset.dir;
-                switch (dir) {
-                    case 'up': this.movePlayer(0, -1); break;
-                    case 'down': this.movePlayer(0, 1); break;
-                    case 'left': this.movePlayer(-1, 0); break;
-                    case 'right': this.movePlayer(1, 0); break;
-                }
-            };
-
-            btn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                handleMove();
-            });
-            btn.addEventListener('click', handleMove);
+        // Update layout on orientation change
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateControlsLayout, 150);
+        });
+        window.addEventListener('resize', () => {
+            // Debounce resize to avoid too many updates
+            clearTimeout(this._resizeControlsTimeout);
+            this._resizeControlsTimeout = setTimeout(updateControlsLayout, 100);
         });
 
-        // 动作按钮
-        const actionButtons = controls.querySelectorAll('[data-action]');
-        actionButtons.forEach(btn => {
-            const handleAction = () => {
-                const action = btn.dataset.action;
-                switch (action) {
-                    case 'pickup': this.pickupItem(); break;
-                    case 'attack': this.attackNearby(); break;
-                    case 'item': this.useQuickItem(); break;
-                }
-            };
-
-            btn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                handleAction();
-            });
-            btn.addEventListener('click', handleAction);
-        });
-
-        // 触摸滑动控制
+        // 触摸滑动控制 (swipe on canvas)
         let touchStartX = 0;
         let touchStartY = 0;
 
