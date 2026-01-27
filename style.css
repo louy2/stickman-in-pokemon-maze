@@ -538,6 +538,7 @@ body {
 
 .ctrl-btn:active {
     background: rgba(255, 255, 255, 0.4);
+    transform: scale(0.95);
 }
 
 .ctrl-btn.action {
@@ -547,28 +548,282 @@ body {
     background: rgba(78, 205, 196, 0.4);
 }
 
-/* Mobile Responsive */
-@media (max-width: 900px) {
+/* Tablet Controls Layout */
+.tablet-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 20px;
+    max-width: 100%;
+}
+
+.dpad-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.action-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Touch-friendly defaults */
+button, .ctrl-btn, .inventory-item, .shop-item button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+/* Tablet / iPad Responsive (768px - 1024px) */
+@media (min-width: 601px) and (max-width: 1024px) {
+    #game-container {
+        padding: 10px;
+        padding-bottom: 220px;
+    }
+
     #main-area {
         flex-direction: column;
+    }
+
+    #game-canvas {
+        max-width: 100%;
+        min-height: 400px;
     }
 
     #side-panel {
         width: 100%;
         flex-direction: row;
         flex-wrap: wrap;
+        gap: 10px;
     }
 
-    #minimap-container, #inventory-panel, #equipment-panel {
+    #minimap-container {
         flex: 1;
-        min-width: 150px;
+        min-width: 180px;
     }
 
-    #game-canvas {
-        max-width: 100%;
+    #inventory-panel {
+        flex: 2;
+        min-width: 250px;
+    }
+
+    #equipment-panel {
+        flex: 1;
+        min-width: 180px;
+    }
+
+    #inventory-list {
+        max-height: 120px;
+    }
+
+    .inventory-item {
+        padding: 10px 15px;
+        font-size: 14px;
+        min-height: 44px;
+    }
+
+    .equip-slot {
+        padding: 12px;
+        font-size: 14px;
+        min-height: 44px;
+    }
+
+    #controls-hint {
+        display: none;
+    }
+
+    #mobile-controls {
+        display: block;
+    }
+
+    .ctrl-btn {
+        width: 70px;
+        height: 70px;
+        font-size: 28px;
+        border-radius: 18px;
+    }
+
+    .ctrl-btn.action {
+        width: 70px;
+        height: 70px;
+        font-size: 14px;
+    }
+
+    .control-row {
+        gap: 15px;
+        margin: 8px 0;
+    }
+
+    #player-stats span {
+        font-size: 14px;
+        padding: 8px 16px;
+    }
+
+    #player-stats {
+        gap: 12px;
+    }
+
+    #message-log {
+        height: 80px;
+    }
+
+    #messages {
+        font-size: 14px;
+    }
+
+    /* Battle overlay tablet adjustments */
+    #battle-box {
+        max-width: 500px;
+        padding: 25px;
+    }
+
+    #battle-actions button {
+        padding: 16px;
+        font-size: 16px;
+        min-height: 50px;
+    }
+
+    #battle-log {
+        font-size: 14px;
+        height: 120px;
+    }
+
+    /* Dialog tablet adjustments */
+    #dialog-box {
+        max-width: 550px;
+        padding: 25px;
+    }
+
+    #dialog-options button {
+        padding: 14px 30px;
+        font-size: 16px;
+        min-height: 50px;
+    }
+
+    #dialog-text {
+        font-size: 16px;
+    }
+
+    /* Shop tablet adjustments */
+    #shop-box {
+        max-width: 600px;
+        padding: 25px;
+    }
+
+    .shop-item {
+        padding: 15px 20px;
+        min-height: 60px;
+    }
+
+    .shop-item-name {
+        font-size: 16px;
+    }
+
+    .shop-item-desc {
+        font-size: 13px;
+    }
+
+    .shop-item button {
+        padding: 12px 20px;
+        font-size: 14px;
+        min-height: 44px;
+    }
+
+    #shop-close {
+        padding: 16px;
+        font-size: 16px;
+        min-height: 50px;
+    }
+
+    /* Story overlay tablet adjustments */
+    #story-box {
+        max-width: 650px;
+        padding: 50px;
+    }
+
+    #story-text {
+        font-size: 20px;
+    }
+
+    #story-next {
+        padding: 16px 50px;
+        font-size: 18px;
+    }
+
+    /* Status bars */
+    #pollution-bar {
+        width: 120px;
+        height: 16px;
+    }
+
+    #pollution-value {
+        font-size: 14px;
+    }
+
+    .status-icon {
+        padding: 5px 12px;
+        font-size: 14px;
     }
 }
 
+/* iPad Landscape specific */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: landscape) {
+    #game-container {
+        padding-bottom: 180px;
+    }
+
+    #main-area {
+        flex-direction: row;
+    }
+
+    #game-canvas {
+        flex: 1;
+        max-width: calc(100% - 280px);
+        min-height: 350px;
+    }
+
+    #side-panel {
+        width: 260px;
+        flex-direction: column;
+    }
+
+    #minimap-container, #inventory-panel, #equipment-panel {
+        min-width: auto;
+        flex: none;
+    }
+
+    #inventory-list {
+        max-height: 100px;
+    }
+
+    #mobile-controls {
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        right: auto;
+        width: auto;
+    }
+
+    .ctrl-btn {
+        width: 55px;
+        height: 55px;
+        font-size: 22px;
+    }
+
+    .ctrl-btn.action {
+        width: 55px;
+        height: 55px;
+        font-size: 12px;
+    }
+
+    .control-row {
+        gap: 8px;
+        margin: 4px 0;
+    }
+}
+
+/* Mobile Responsive (up to 600px) */
 @media (max-width: 600px) {
     #controls-hint {
         display: none;
@@ -597,7 +852,77 @@ body {
 
     #game-container {
         padding: 5px;
-        padding-bottom: 180px;
+        padding-bottom: 200px;
+    }
+
+    .ctrl-btn {
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+    }
+
+    .ctrl-btn.action {
+        width: 55px;
+        height: 55px;
+        font-size: 12px;
+    }
+
+    /* Battle mobile adjustments */
+    #battle-actions button {
+        padding: 14px;
+        font-size: 14px;
+        min-height: 48px;
+    }
+
+    /* Shop mobile adjustments */
+    .shop-item button {
+        padding: 10px 15px;
+        min-height: 44px;
+    }
+
+    #shop-close {
+        padding: 14px;
+        min-height: 48px;
+    }
+
+    /* Dialog mobile adjustments */
+    #dialog-options button {
+        padding: 12px 25px;
+        min-height: 48px;
+    }
+
+    /* Pollution bar mobile */
+    #pollution-bar {
+        width: 80px;
+        height: 10px;
+    }
+
+    #pollution-value {
+        font-size: 11px;
+    }
+}
+
+/* Small phones */
+@media (max-width: 380px) {
+    .ctrl-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+
+    .ctrl-btn.action {
+        width: 45px;
+        height: 45px;
+        font-size: 10px;
+    }
+
+    .control-row {
+        gap: 6px;
+    }
+
+    #player-stats span {
+        font-size: 10px;
+        padding: 2px 6px;
     }
 }
 

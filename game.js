@@ -103,23 +103,58 @@ class Game {
 
     setupCanvas() {
         const updateSize = () => {
-            const container = document.getElementById('main-area');
-            const maxWidth = Math.min(800, window.innerWidth - 280);
-            const maxHeight = Math.min(480, window.innerHeight - 250);
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            const isTablet = screenWidth >= 600 && screenWidth <= 1024;
+            const isLandscape = screenWidth > screenHeight;
 
-            this.canvas.width = maxWidth;
-            this.canvas.height = maxHeight;
+            let maxWidth, maxHeight;
 
-            this.config.viewportTilesX = Math.floor(maxWidth / this.config.tileSize);
-            this.config.viewportTilesY = Math.floor(maxHeight / this.config.tileSize);
+            if (isTablet) {
+                if (isLandscape) {
+                    // iPad landscape: side panel visible
+                    maxWidth = Math.min(screenWidth - 290, 700);
+                    maxHeight = Math.min(screenHeight - 280, 400);
+                } else {
+                    // iPad portrait: full width, more height for game
+                    maxWidth = Math.min(screenWidth - 30, 800);
+                    maxHeight = Math.min(screenHeight - 450, 450);
+                }
+            } else if (screenWidth <= 600) {
+                // Mobile
+                maxWidth = screenWidth - 20;
+                maxHeight = Math.min(screenHeight - 350, 350);
+            } else {
+                // Desktop
+                maxWidth = Math.min(800, screenWidth - 280);
+                maxHeight = Math.min(480, screenHeight - 250);
+            }
+
+            this.canvas.width = Math.max(300, maxWidth);
+            this.canvas.height = Math.max(250, maxHeight);
+
+            // Adjust tile size for better view on tablets
+            if (isTablet) {
+                this.config.tileSize = isLandscape ? 36 : 38;
+            } else if (screenWidth <= 600) {
+                this.config.tileSize = 35;
+            } else {
+                this.config.tileSize = 40;
+            }
+
+            this.config.viewportTilesX = Math.floor(this.canvas.width / this.config.tileSize);
+            this.config.viewportTilesY = Math.floor(this.canvas.height / this.config.tileSize);
 
             // 小地图
-            this.minimapCanvas.width = this.minimapCanvas.offsetWidth;
-            this.minimapCanvas.height = 120;
+            this.minimapCanvas.width = this.minimapCanvas.offsetWidth || 200;
+            this.minimapCanvas.height = isTablet ? 100 : 120;
         };
 
         updateSize();
         window.addEventListener('resize', updateSize);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateSize, 100);
+        });
     }
 
     // ==================== 迷宫生成 ====================
@@ -1337,23 +1372,57 @@ class Game {
         // 创建移动控制按钮
         const controls = document.createElement('div');
         controls.id = 'mobile-controls';
-        controls.innerHTML = `
-            <div class="control-row">
-                <button class="ctrl-btn" data-dir="up">↑</button>
-            </div>
-            <div class="control-row">
-                <button class="ctrl-btn" data-dir="left">←</button>
-                <button class="ctrl-btn action" data-action="pickup">拾取</button>
-                <button class="ctrl-btn" data-dir="right">→</button>
-            </div>
-            <div class="control-row">
-                <button class="ctrl-btn" data-dir="down">↓</button>
-            </div>
-            <div class="control-row">
-                <button class="ctrl-btn action" data-action="attack">攻击</button>
-                <button class="ctrl-btn action" data-action="item">道具</button>
-            </div>
-        `;
+
+        // Check if tablet for different layout
+        const isTablet = window.innerWidth >= 600 && window.innerWidth <= 1024;
+
+        if (isTablet) {
+            // Tablet layout: D-pad left, actions right
+            controls.innerHTML = `
+                <div class="tablet-controls">
+                    <div class="dpad-container">
+                        <div class="control-row">
+                            <button class="ctrl-btn" data-dir="up">↑</button>
+                        </div>
+                        <div class="control-row">
+                            <button class="ctrl-btn" data-dir="left">←</button>
+                            <button class="ctrl-btn" data-dir="right">→</button>
+                        </div>
+                        <div class="control-row">
+                            <button class="ctrl-btn" data-dir="down">↓</button>
+                        </div>
+                    </div>
+                    <div class="action-container">
+                        <div class="control-row">
+                            <button class="ctrl-btn action" data-action="attack">攻击</button>
+                            <button class="ctrl-btn action" data-action="item">道具</button>
+                        </div>
+                        <div class="control-row">
+                            <button class="ctrl-btn action" data-action="pickup">拾取</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Mobile layout: centered stacked
+            controls.innerHTML = `
+                <div class="control-row">
+                    <button class="ctrl-btn" data-dir="up">↑</button>
+                </div>
+                <div class="control-row">
+                    <button class="ctrl-btn" data-dir="left">←</button>
+                    <button class="ctrl-btn action" data-action="pickup">拾取</button>
+                    <button class="ctrl-btn" data-dir="right">→</button>
+                </div>
+                <div class="control-row">
+                    <button class="ctrl-btn" data-dir="down">↓</button>
+                </div>
+                <div class="control-row">
+                    <button class="ctrl-btn action" data-action="attack">攻击</button>
+                    <button class="ctrl-btn action" data-action="item">道具</button>
+                </div>
+            `;
+        }
         document.body.appendChild(controls);
 
         // 移动按钮
