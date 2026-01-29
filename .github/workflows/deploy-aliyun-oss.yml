@@ -1,0 +1,63 @@
+name: Deploy to Aliyun OSS
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup aliyun-cli
+        uses: aliyun/setup-aliyun-cli-action@v1
+        with:
+          aliyun-cli-version: latest
+          aliyun-cli-access-key-id: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+          aliyun-cli-access-key-secret: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+          aliyun-cli-region: ${{ vars.ALIYUN_OSS_REGION }}
+
+      - name: Install ossutil
+        run: |
+          aliyun tool install oss
+
+      - name: Configure ossutil
+        run: |
+          aliyun oss config \
+            --access-key-id ${{ secrets.ALIYUN_ACCESS_KEY_ID }} \
+            --access-key-secret ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }} \
+            --endpoint ${{ vars.ALIYUN_OSS_ENDPOINT }}
+
+      - name: Deploy to OSS
+        run: |
+          # Sync all static files to OSS bucket
+          aliyun oss sync . oss://${{ vars.ALIYUN_OSS_BUCKET }}/ \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --exclude "LICENSE" \
+            --exclude "README.md" \
+            --delete \
+            --force
+
+      - name: Set Cache-Control headers
+        run: |
+          # Set appropriate cache headers for different file types
+          # HTML files - no cache to always get latest
+          aliyun oss setmeta oss://${{ vars.ALIYUN_OSS_BUCKET }}/ \
+            --include "*.html" \
+            --meta "Cache-Control:no-cache, no-store, must-revalidate" \
+            --recursive \
+            --force
+
+          # JS and CSS files - cache for 1 day
+          aliyun oss setmeta oss://${{ vars.ALIYUN_OSS_BUCKET }}/ \
+            --include "*.js" \
+            --include "*.css" \
+            --meta "Cache-Control:public, max-age=86400" \
+            --recursive \
+            --force
