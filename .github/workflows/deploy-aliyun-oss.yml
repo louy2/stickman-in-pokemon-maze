@@ -28,20 +28,19 @@ jobs:
             -i ${{ secrets.ALIYUN_ACCESS_KEY_ID }} \
             -k ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
 
+      - name: Prepare deployment files
+        run: |
+          mkdir -p dist
+          cp *.html *.js *.css dist/ 2>/dev/null || true
+
       - name: Deploy to OSS
         run: |
-          # Sync all static files to OSS bucket
-          ossutil sync . oss://${{ vars.ALIYUN_OSS_BUCKET }}/ \
-            --exclude ".git/*" \
-            --exclude ".github/*" \
-            --exclude "LICENSE" \
-            --exclude "README.md" \
+          ossutil sync dist/ oss://${{ vars.ALIYUN_OSS_BUCKET }}/ \
             --delete \
             --force
 
       - name: Set Cache-Control headers
         run: |
-          # Set appropriate cache headers for different file types
           # HTML files - no cache to always get latest
           ossutil set-meta oss://${{ vars.ALIYUN_OSS_BUCKET }}/ \
             "Cache-Control:no-cache, no-store, must-revalidate" \
@@ -53,6 +52,11 @@ jobs:
           ossutil set-meta oss://${{ vars.ALIYUN_OSS_BUCKET }}/ \
             "Cache-Control:public, max-age=86400" \
             --include "*.js" \
+            --recursive \
+            --force
+
+          ossutil set-meta oss://${{ vars.ALIYUN_OSS_BUCKET }}/ \
+            "Cache-Control:public, max-age=86400" \
             --include "*.css" \
             --recursive \
             --force
