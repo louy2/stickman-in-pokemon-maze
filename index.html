@@ -65,11 +65,12 @@
         </div>
 
         <div id="controls-hint">
-            方向键/WASD: 移动 | Z: 攻击 | I: 背包 | Space: 拾取/交互 | Q: 使用道具
+            方向键/WASD: 移动 | Z: 攻击 | Space: 拾取/交互 | Q: 使用道具 | F5: 存档
         </div>
 
         <!-- 音频控制按钮 -->
         <div id="audio-controls">
+            <button id="btn-save" title="存档/读档 (F5)">💾</button>
             <button id="btn-music" title="切换音乐">🎵</button>
             <button id="btn-sfx" title="切换音效">🔊</button>
         </div>
@@ -128,6 +129,15 @@
             <h1>游戏结束</h1>
             <p id="gameover-text"></p>
             <button id="restart-btn">重新开始</button>
+        </div>
+    </div>
+
+    <!-- 存档/读档界面 -->
+    <div id="saveload-overlay" class="hidden">
+        <div id="saveload-box">
+            <h2>💾 存档管理</h2>
+            <div id="save-slots"></div>
+            <button id="saveload-close">关闭</button>
         </div>
     </div>
 

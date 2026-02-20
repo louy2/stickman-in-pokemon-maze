@@ -89,6 +89,7 @@ class Game {
     setupAudioControls() {
         const musicBtn = document.getElementById('btn-music');
         const sfxBtn = document.getElementById('btn-sfx');
+        const saveBtn = document.getElementById('btn-save');
 
         musicBtn.onclick = () => {
             const enabled = audioManager.toggleMusic();
@@ -103,6 +104,19 @@ class Game {
             const enabled = audioManager.toggleSFX();
             sfxBtn.classList.toggle('muted', !enabled);
             sfxBtn.textContent = enabled ? '🔊' : '🔈';
+        };
+
+        saveBtn.onclick = () => {
+            if (!document.getElementById('saveload-overlay').classList.contains('hidden')) {
+                this.hideSaveLoadOverlay();
+            } else if (!this.state.inBattle) {
+                this.showSaveLoadOverlay();
+            }
+        };
+
+        // 存档界面关闭按钮
+        document.getElementById('saveload-close').onclick = () => {
+            this.hideSaveLoadOverlay();
         };
     }
 
@@ -2001,6 +2015,11 @@ class Game {
         // Restore context music
         this.playContextMusic();
 
+        // 战斗胜利后自动存档
+        if (victory) {
+            this.autoSave();
+        }
+
         // BOSS楼梯战斗胜利后进入下一层
         if (wasBossStairs) {
             this.bossStairsActive = false;
@@ -2373,6 +2392,7 @@ class Game {
         audioManager.playSFX('stairs');
         this.state.floor++;
         this.generateFloor();
+        this.autoSave();
     }
 
     endChapter() {
@@ -2398,6 +2418,7 @@ class Game {
 
         this.showChapterIntro();
         this.generateFloor();
+        this.autoSave();
     }
 
     // ==================== 游戏状态 ====================
@@ -2589,8 +2610,21 @@ class Game {
                     this.useQuickItem();
                     break;
                 case 'Escape':
-                    if (this.state.inShop) this.closeShop();
-                    if (this.state.inDialog) this.closeDialog();
+                    if (!document.getElementById('saveload-overlay').classList.contains('hidden')) {
+                        this.hideSaveLoadOverlay();
+                    } else if (this.state.inShop) {
+                        this.closeShop();
+                    } else if (this.state.inDialog) {
+                        this.closeDialog();
+                    }
+                    break;
+                case 'F5':
+                    e.preventDefault();
+                    if (!document.getElementById('saveload-overlay').classList.contains('hidden')) {
+                        this.hideSaveLoadOverlay();
+                    } else if (!this.state.inBattle) {
+                        this.showSaveLoadOverlay();
+                    }
                     break;
             }
         });
@@ -3002,6 +3036,324 @@ class Game {
             ctx.lineTo(x + 15 * scale, y - 8 * scale);
             ctx.stroke();
         }
+    }
+
+    // ==================== 存档系统 ====================
+
+    getSaveData() {
+        return {
+            version: 1,
+            timestamp: Date.now(),
+            player: JSON.parse(JSON.stringify(this.player)),
+            state: JSON.parse(JSON.stringify(this.state)),
+            maze: JSON.parse(JSON.stringify(this.maze)),
+            explored: JSON.parse(JSON.stringify(this.explored)),
+            entities: this.entities.map(e => JSON.parse(JSON.stringify(e))),
+            items: this.items.map(i => JSON.parse(JSON.stringify(i))),
+            stairsPos: this.stairsPos ? { ...this.stairsPos } : null,
+            portals: this.portals.map(p => JSON.parse(JSON.stringify(p))),
+            currentArea: this.currentArea,
+            defeatedBosses: [...this.defeatedBosses],
+            areaExplored: { ...this.areaExplored },
+            worldPollution: this.worldPollution,
+            bossStairsData: this.bossStairsData ? JSON.parse(JSON.stringify(this.bossStairsData)) : null,
+            bossStairsActive: this.bossStairsActive,
+            bossCorridorChains: JSON.parse(JSON.stringify(this.bossCorridorChains))
+        };
+    }
+
+    saveGame(slotIndex) {
+        if (this.state.gameOver || this.state.inBattle) {
+            this.addMessage("当前状态无法存档。", "system");
+            return false;
+        }
+
+        try {
+            const saveData = this.getSaveData();
+            const key = `stickman_pokemon_save_${slotIndex}`;
+            localStorage.setItem(key, JSON.stringify(saveData));
+            this.addMessage(`存档成功！（存档位 ${slotIndex + 1}）`, "system");
+            return true;
+        } catch (e) {
+            this.addMessage("存档失败：存储空间不足。", "system");
+            return false;
+        }
+    }
+
+    loadGame(slotIndex) {
+        const key = `stickman_pokemon_save_${slotIndex}`;
+        const raw = localStorage.getItem(key);
+
+        if (!raw) {
+            this.addMessage("该存档位没有存档。", "system");
+            return false;
+        }
+
+        try {
+            const saveData = JSON.parse(raw);
+
+            // 恢复玩家数据
+            Object.assign(this.player, saveData.player);
+
+            // 恢复游戏状态
+            this.state = saveData.state;
+            this.state.inBattle = false;
+            this.state.inShop = false;
+            this.state.inDialog = false;
+            this.state.inStory = false;
+
+            // 恢复地图数据
+            this.maze = saveData.maze;
+            this.explored = saveData.explored;
+            this.entities = saveData.entities;
+            this.items = saveData.items;
+            this.stairsPos = saveData.stairsPos;
+            this.portals = saveData.portals || [];
+            this.currentArea = saveData.currentArea || "central";
+            this.defeatedBosses = saveData.defeatedBosses || [];
+            this.areaExplored = saveData.areaExplored || {};
+            this.worldPollution = saveData.worldPollution !== undefined ? saveData.worldPollution : 100;
+            this.bossStairsData = saveData.bossStairsData || null;
+            this.bossStairsActive = saveData.bossStairsActive || false;
+            this.bossCorridorChains = saveData.bossCorridorChains || [];
+
+            // 关闭所有叠加界面
+            document.getElementById('battle-overlay').classList.add('hidden');
+            document.getElementById('shop-overlay').classList.add('hidden');
+            document.getElementById('dialog-overlay').classList.add('hidden');
+            document.getElementById('story-overlay').classList.add('hidden');
+            document.getElementById('gameover-overlay').classList.add('hidden');
+
+            // 更新UI
+            this.updatePlayerStats();
+            this.updateInventoryUI();
+            this.updateEquipmentUI();
+            this.playContextMusic();
+
+            this.addMessage(`读档成功！（存档位 ${slotIndex + 1}）`, "system");
+            return true;
+        } catch (e) {
+            this.addMessage("读档失败：存档数据损坏。", "system");
+            return false;
+        }
+    }
+
+    autoSave() {
+        try {
+            const saveData = this.getSaveData();
+            localStorage.setItem('stickman_pokemon_autosave', JSON.stringify(saveData));
+        } catch (e) {
+            // 自动存档失败时不打扰玩家
+        }
+    }
+
+    deleteSave(slotIndex) {
+        const key = `stickman_pokemon_save_${slotIndex}`;
+        localStorage.removeItem(key);
+    }
+
+    getSaveInfo(slotIndex) {
+        const key = `stickman_pokemon_save_${slotIndex}`;
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+
+        try {
+            const data = JSON.parse(raw);
+            const chapter = CHAPTERS[data.state.chapter];
+            const chapterName = chapter ? chapter.name.split('：')[0] : `第${data.state.chapter}章`;
+            const date = new Date(data.timestamp);
+            const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+            return {
+                chapter: chapterName,
+                floor: data.state.floor,
+                level: data.player.level,
+                hp: data.player.hp,
+                maxHp: data.player.maxHp,
+                gold: data.player.gold,
+                date: dateStr
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    getAutoSaveInfo() {
+        const raw = localStorage.getItem('stickman_pokemon_autosave');
+        if (!raw) return null;
+
+        try {
+            const data = JSON.parse(raw);
+            const chapter = CHAPTERS[data.state.chapter];
+            const chapterName = chapter ? chapter.name.split('：')[0] : `第${data.state.chapter}章`;
+            const date = new Date(data.timestamp);
+            const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+            return {
+                chapter: chapterName,
+                floor: data.state.floor,
+                level: data.player.level,
+                hp: data.player.hp,
+                maxHp: data.player.maxHp,
+                gold: data.player.gold,
+                date: dateStr
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    loadAutoSave() {
+        const raw = localStorage.getItem('stickman_pokemon_autosave');
+        if (!raw) return false;
+
+        try {
+            const saveData = JSON.parse(raw);
+            // 临时存入slot以复用loadGame逻辑
+            localStorage.setItem('stickman_pokemon_save_temp', raw);
+            const key = 'stickman_pokemon_save_temp';
+
+            Object.assign(this.player, saveData.player);
+            this.state = saveData.state;
+            this.state.inBattle = false;
+            this.state.inShop = false;
+            this.state.inDialog = false;
+            this.state.inStory = false;
+            this.maze = saveData.maze;
+            this.explored = saveData.explored;
+            this.entities = saveData.entities;
+            this.items = saveData.items;
+            this.stairsPos = saveData.stairsPos;
+            this.portals = saveData.portals || [];
+            this.currentArea = saveData.currentArea || "central";
+            this.defeatedBosses = saveData.defeatedBosses || [];
+            this.areaExplored = saveData.areaExplored || {};
+            this.worldPollution = saveData.worldPollution !== undefined ? saveData.worldPollution : 100;
+            this.bossStairsData = saveData.bossStairsData || null;
+            this.bossStairsActive = saveData.bossStairsActive || false;
+            this.bossCorridorChains = saveData.bossCorridorChains || [];
+
+            document.getElementById('battle-overlay').classList.add('hidden');
+            document.getElementById('shop-overlay').classList.add('hidden');
+            document.getElementById('dialog-overlay').classList.add('hidden');
+            document.getElementById('story-overlay').classList.add('hidden');
+            document.getElementById('gameover-overlay').classList.add('hidden');
+
+            this.updatePlayerStats();
+            this.updateInventoryUI();
+            this.updateEquipmentUI();
+            this.playContextMusic();
+
+            localStorage.removeItem(key);
+            this.addMessage("已加载自动存档。", "system");
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    showSaveLoadOverlay() {
+        const overlay = document.getElementById('saveload-overlay');
+        overlay.classList.remove('hidden');
+        this.updateSaveSlots();
+    }
+
+    hideSaveLoadOverlay() {
+        document.getElementById('saveload-overlay').classList.add('hidden');
+    }
+
+    updateSaveSlots() {
+        const container = document.getElementById('save-slots');
+        container.innerHTML = '';
+
+        // 自动存档栏
+        const autoInfo = this.getAutoSaveInfo();
+        const autoSlot = document.createElement('div');
+        autoSlot.className = 'save-slot';
+        if (autoInfo) {
+            autoSlot.innerHTML = `
+                <div class="save-slot-header">自动存档</div>
+                <div class="save-slot-info">
+                    <span>${autoInfo.chapter} - ${autoInfo.floor}F</span>
+                    <span>Lv.${autoInfo.level} | HP:${autoInfo.hp}/${autoInfo.maxHp} | 金币:${autoInfo.gold}</span>
+                    <span class="save-date">${autoInfo.date}</span>
+                </div>
+                <div class="save-slot-actions">
+                    <button class="save-btn load-btn" data-slot="auto">读取</button>
+                </div>
+            `;
+        } else {
+            autoSlot.innerHTML = `
+                <div class="save-slot-header">自动存档</div>
+                <div class="save-slot-empty">无存档</div>
+            `;
+        }
+        container.appendChild(autoSlot);
+
+        // 3个手动存档栏
+        for (let i = 0; i < 3; i++) {
+            const info = this.getSaveInfo(i);
+            const slot = document.createElement('div');
+            slot.className = 'save-slot';
+
+            if (info) {
+                slot.innerHTML = `
+                    <div class="save-slot-header">存档位 ${i + 1}</div>
+                    <div class="save-slot-info">
+                        <span>${info.chapter} - ${info.floor}F</span>
+                        <span>Lv.${info.level} | HP:${info.hp}/${info.maxHp} | 金币:${info.gold}</span>
+                        <span class="save-date">${info.date}</span>
+                    </div>
+                    <div class="save-slot-actions">
+                        <button class="save-btn" data-slot="${i}" data-action="save">保存</button>
+                        <button class="save-btn load-btn" data-slot="${i}" data-action="load">读取</button>
+                        <button class="save-btn delete-btn" data-slot="${i}" data-action="delete">删除</button>
+                    </div>
+                `;
+            } else {
+                slot.innerHTML = `
+                    <div class="save-slot-header">存档位 ${i + 1}</div>
+                    <div class="save-slot-empty">空存档位</div>
+                    <div class="save-slot-actions">
+                        <button class="save-btn" data-slot="${i}" data-action="save">保存</button>
+                    </div>
+                `;
+            }
+            container.appendChild(slot);
+        }
+
+        // 事件绑定
+        container.querySelectorAll('.save-btn').forEach(btn => {
+            btn.onclick = () => {
+                const slot = btn.dataset.slot;
+                const action = btn.dataset.action;
+
+                if (slot === 'auto') {
+                    this.loadAutoSave();
+                    this.hideSaveLoadOverlay();
+                    return;
+                }
+
+                const slotIndex = parseInt(slot);
+
+                if (action === 'save') {
+                    if (this.getSaveInfo(slotIndex)) {
+                        if (!confirm(`存档位 ${slotIndex + 1} 已有存档，是否覆盖？`)) return;
+                    }
+                    this.saveGame(slotIndex);
+                    this.updateSaveSlots();
+                } else if (action === 'load') {
+                    this.loadGame(slotIndex);
+                    this.hideSaveLoadOverlay();
+                } else if (action === 'delete') {
+                    if (confirm(`确定删除存档位 ${slotIndex + 1} 的存档吗？`)) {
+                        this.deleteSave(slotIndex);
+                        this.updateSaveSlots();
+                        this.addMessage(`存档位 ${slotIndex + 1} 已删除。`, "system");
+                    }
+                }
+            };
+        });
     }
 
     renderMinimap() {
