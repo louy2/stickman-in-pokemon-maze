@@ -43,7 +43,9 @@ class Game {
             pollution: 0,
             maxPollution: 100,
             bleeding: false,
-            bleedingTurns: 0
+            bleedingTurns: 0,
+            burning: false,
+            burningTurns: 0
         };
 
         // 地图数据
@@ -59,6 +61,11 @@ class Game {
         this.defeatedBosses = [];
         this.areaExplored = {};  // Track explored areas
         this.worldPollution = 100;  // Global pollution level (0-100, start at max)
+
+        // BOSS楼梯系统
+        this.bossStairsData = null;
+        this.bossStairsActive = false;
+        this.bossCorridorChains = [];
 
         // 当前战斗/交互对象
         this.currentEnemy = null;
@@ -242,6 +249,7 @@ class Game {
         this.entities = [];
         this.items = [];
         this.explored = [];
+        this.bossCorridorChains = [];
 
         const chapter = CHAPTERS[this.state.chapter];
 
@@ -279,8 +287,23 @@ class Game {
         // 检查是否是BOSS层
         const boss = getBossForFloor(this.state.chapter, this.state.floor);
         if (boss) {
-            this.spawnBoss(boss);
+            if (boss.isBossStairs) {
+                // BOSS楼梯模式：不生成BOSS实体，通过楼梯触发BOSS战
+                this.bossStairsData = boss;
+                this.bossStairsActive = true;
+                // 生成普通敌人（少量）
+                if (this.state.chapter === 1) {
+                    this.spawnPokemon();
+                } else {
+                    this.spawnChapter2Enemies();
+                }
+                this.addMessage("⛓️ 前方传来沉重的铁链碰撞声...", "system");
+            } else {
+                this.spawnBoss(boss);
+            }
         } else {
+            this.bossStairsData = null;
+            this.bossStairsActive = false;
             // 根据章节生成不同敌人
             if (this.state.chapter === 1) {
                 this.spawnPokemon();
@@ -944,6 +967,31 @@ class Game {
         }
     }
 
+    startBossStairsBattle() {
+        const bossData = this.bossStairsData;
+        if (!bossData) return;
+
+        // 显示BOSS警告
+        this.addMessage("⚠️ 警告：检测到强大的敌人！", "system");
+        this.addMessage(bossData.intro, "system");
+
+        // 创建BOSS实体（不放到地图上，直接进入战斗）
+        const boss = {
+            ...bossData,
+            x: this.player.x,
+            y: this.player.y,
+            currentHp: bossData.hp,
+            maxHp: bossData.hp,
+            isBoss: true,
+            buffedAttack: 0,
+            buffedDefense: 0,
+            specialCooldown: 0,
+            currentPhase: 0
+        };
+
+        this.startBattle(boss);
+    }
+
     carveMaze(x, y) {
         const directions = [
             [0, -2], [0, 2], [-2, 0], [2, 0]
@@ -989,6 +1037,14 @@ class Game {
     }
 
     placeStairs() {
+        const boss = getBossForFloor(this.state.chapter, this.state.floor);
+
+        if (boss && boss.isBossStairs) {
+            // BOSS楼梯：创建必经之路走廊
+            this.placeBossStairs();
+            return;
+        }
+
         let placed = false;
         while (!placed) {
             const x = Math.floor(Math.random() * (this.config.mazeWidth - 2)) + 1;
@@ -1000,6 +1056,85 @@ class Game {
                     this.stairsPos = { x, y };
                     placed = true;
                 }
+            }
+        }
+    }
+
+    placeBossStairs() {
+        // 在地图右下角区域创建BOSS走廊和楼梯
+        const corridorX = this.config.mazeWidth - 4;
+        const corridorY = this.config.mazeHeight - 4;
+
+        // 创建一个小BOSS房间 (3x3)
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const nx = corridorX + dx;
+                const ny = corridorY + dy;
+                if (nx > 0 && nx < this.config.mazeWidth - 1 &&
+                    ny > 0 && ny < this.config.mazeHeight - 1) {
+                    this.maze[ny][nx] = 0;
+                }
+            }
+        }
+
+        // 创建通往BOSS房间的狭窄走廊（必经之路）
+        // 从房间左侧开一个1格宽的入口
+        const entranceY = corridorY;
+        for (let x = corridorX - 2; x >= corridorX - 6 && x > 0; x--) {
+            this.maze[entranceY][x] = 0;
+            // 确保走廊两侧是墙（必经之路）
+            if (entranceY - 1 > 0) this.maze[entranceY - 1][x] = 1;
+            if (entranceY + 1 < this.config.mazeHeight - 1) this.maze[entranceY + 1][x] = 1;
+        }
+
+        // 连接走廊到主迷宫
+        const connectX = corridorX - 6 > 0 ? corridorX - 6 : 2;
+        for (let y = 1; y < this.config.mazeHeight - 1; y++) {
+            if (this.maze[y][connectX] === 0 && y !== entranceY) {
+                // 找到迷宫的通道，开一条连接路径
+                const minY = Math.min(y, entranceY);
+                const maxY = Math.max(y, entranceY);
+                for (let cy = minY; cy <= maxY; cy++) {
+                    this.maze[cy][connectX] = 0;
+                }
+                break;
+            }
+        }
+
+        // 封住BOSS房间的其他出口（只留走廊入口）
+        // 上方封墙
+        for (let dx = -1; dx <= 1; dx++) {
+            const wx = corridorX + dx;
+            const wy = corridorY - 2;
+            if (wy > 0 && wx > 0 && wx < this.config.mazeWidth - 1) {
+                this.maze[wy][wx] = 1;
+            }
+        }
+        // 下方封墙
+        for (let dx = -1; dx <= 1; dx++) {
+            const wx = corridorX + dx;
+            const wy = corridorY + 2;
+            if (wy < this.config.mazeHeight - 1 && wx > 0 && wx < this.config.mazeWidth - 1) {
+                this.maze[wy][wx] = 1;
+            }
+        }
+        // 右方封墙
+        for (let dy = -1; dy <= 1; dy++) {
+            const wx = corridorX + 2;
+            const wy = corridorY + dy;
+            if (wx < this.config.mazeWidth - 1 && wy > 0 && wy < this.config.mazeHeight - 1) {
+                this.maze[wy][wx] = 1;
+            }
+        }
+
+        // 楼梯放在BOSS房间的最右边
+        this.stairsPos = { x: corridorX + 1, y: corridorY };
+
+        // 记录BOSS走廊的铁链装饰位置
+        this.bossCorridorChains = [];
+        for (let x = corridorX - 5; x <= corridorX - 2; x++) {
+            if (x > 0) {
+                this.bossCorridorChains.push({ x, y: entranceY });
             }
         }
     }
@@ -1185,6 +1320,11 @@ class Game {
 
         // 检查楼梯 (not used in open world)
         if (this.stairsPos && newX === this.stairsPos.x && newY === this.stairsPos.y) {
+            if (this.bossStairsActive && this.bossStairsData) {
+                // BOSS楼梯：触发BOSS战
+                this.startBossStairsBattle();
+                return;
+            }
             this.nextFloor();
         }
 
@@ -1321,7 +1461,13 @@ class Game {
         // BOSS显示特殊名称
         const enemyName = document.getElementById('enemy-name');
         if (enemy.isBoss || enemy.type === 'boss') {
-            enemyName.textContent = `👑 BOSS: ${enemy.name}`;
+            if (enemy.phases) {
+                const phase = enemy.phases[enemy.currentPhase || 0];
+                enemyName.textContent = `👑 BOSS: ${enemy.name} [${phase.name}]`;
+                this.addBattleLog(phase.phaseMessage);
+            } else {
+                enemyName.textContent = `👑 BOSS: ${enemy.name}`;
+            }
             enemyName.style.color = '#ff6b6b';
         } else {
             enemyName.textContent = `${enemy.name} Lv.${this.state.floor + Math.floor(enemy.exp / 30)}`;
@@ -1432,8 +1578,42 @@ class Game {
         const enemy = this.currentEnemy;
         const isBoss = enemy.isBoss || enemy.type === 'boss';
 
-        // BOSS特殊攻击
-        if (isBoss && enemy.specialAttacks && enemy.specialAttacks.length > 0) {
+        // 处理灼烧状态（在敌人回合开始时）
+        if (this.player.burning) {
+            const burnDamage = 5;
+            this.player.hp -= burnDamage;
+            this.player.burningTurns--;
+            this.addBattleLog(`🔥 火焰灼烧造成 ${burnDamage} 点伤害！`);
+            if (this.player.burningTurns <= 0) {
+                this.player.burning = false;
+                this.addBattleLog(`火焰熄灭了。`);
+            }
+            this.updatePlayerStats();
+            if (this.player.hp <= 0) {
+                this.playerDefeated();
+                return;
+            }
+        }
+
+        // BOSS阶段制攻击
+        if (isBoss && enemy.phases && enemy.phases.length > 0) {
+            // 检查阶段转换
+            this.checkBossPhaseTransition(enemy);
+
+            const phase = enemy.phases[enemy.currentPhase || 0];
+            if (phase && phase.attacks && phase.attacks.length > 0) {
+                const attack = phase.attacks[Math.floor(Math.random() * phase.attacks.length)];
+                this.executeBossSpecial(attack);
+                this.updatePlayerStats();
+                if (this.player.hp <= 0) {
+                    this.playerDefeated();
+                }
+                return;
+            }
+        }
+
+        // BOSS特殊攻击（非阶段制）
+        if (isBoss && enemy.specialAttacks && enemy.specialAttacks.length > 0 && !enemy.phases) {
             // 减少冷却
             if (enemy.specialCooldown > 0) {
                 enemy.specialCooldown--;
@@ -1506,6 +1686,110 @@ class Game {
         }
     }
 
+    checkBossPhaseTransition(enemy) {
+        if (!enemy.phases || enemy.phases.length === 0) return;
+
+        const hpPercent = enemy.currentHp / enemy.maxHp;
+        const currentPhase = enemy.currentPhase || 0;
+
+        // 从最后一个阶段开始检查（最高优先级）
+        for (let i = enemy.phases.length - 1; i > currentPhase; i--) {
+            if (hpPercent <= enemy.phases[i].hpThreshold) {
+                enemy.currentPhase = i;
+
+                // 显示阶段转换信息
+                this.addBattleLog(`\n══════════════════`);
+                this.addBattleLog(enemy.phases[i].phaseMessage);
+                this.addBattleLog(`══════════════════\n`);
+
+                // 更新BOSS名称显示
+                const enemyName = document.getElementById('enemy-name');
+                enemyName.textContent = `👑 BOSS: ${enemy.name} [${enemy.phases[i].name}]`;
+
+                // 阶段2：火焰觉醒 - 添加视觉效果
+                const battleBox = document.getElementById('battle-box');
+                if (i === 1) {
+                    battleBox.classList.add('boss-fire-phase');
+                    battleBox.classList.remove('boss-rage-phase');
+                    // 更新精灵画布显示火焰效果
+                    this.drawBossPhaseSprite(enemy, i);
+                } else if (i === 2) {
+                    battleBox.classList.add('boss-rage-phase');
+                    battleBox.classList.remove('boss-fire-phase');
+                    this.drawBossPhaseSprite(enemy, i);
+                }
+
+                break;
+            }
+        }
+    }
+
+    drawBossPhaseSprite(enemy, phase) {
+        const spriteCanvas = document.getElementById('enemy-sprite-canvas');
+        const spriteCtx = spriteCanvas.getContext('2d');
+        spriteCtx.clearRect(0, 0, 96, 96);
+
+        const spriteData = POKEMON_SPRITES[enemy.id];
+        if (spriteData) {
+            drawSprite(spriteCtx, spriteData, 0, 0, 96);
+        }
+
+        // 阶段2：添加火焰效果覆盖
+        if (phase === 1) {
+            spriteCtx.globalCompositeOperation = 'source-atop';
+            const gradient = spriteCtx.createLinearGradient(0, 96, 0, 0);
+            gradient.addColorStop(0, 'rgba(255, 87, 34, 0.6)');
+            gradient.addColorStop(0.5, 'rgba(255, 152, 0, 0.3)');
+            gradient.addColorStop(1, 'rgba(255, 193, 7, 0.1)');
+            spriteCtx.fillStyle = gradient;
+            spriteCtx.fillRect(0, 0, 96, 96);
+            spriteCtx.globalCompositeOperation = 'source-over';
+
+            // 添加火焰粒子
+            for (let i = 0; i < 8; i++) {
+                const fx = 10 + Math.random() * 76;
+                const fy = 20 + Math.random() * 60;
+                const fsize = 2 + Math.random() * 4;
+                spriteCtx.fillStyle = `rgba(255, ${Math.floor(100 + Math.random() * 155)}, 0, 0.8)`;
+                spriteCtx.beginPath();
+                spriteCtx.arc(fx, fy, fsize, 0, Math.PI * 2);
+                spriteCtx.fill();
+            }
+        }
+        // 阶段3：添加愤怒效果（红色 + 断链）
+        else if (phase === 2) {
+            spriteCtx.globalCompositeOperation = 'source-atop';
+            spriteCtx.fillStyle = 'rgba(255, 0, 0, 0.25)';
+            spriteCtx.fillRect(0, 0, 96, 96);
+            spriteCtx.globalCompositeOperation = 'source-over';
+
+            // 添加愤怒光环
+            spriteCtx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+            spriteCtx.lineWidth = 2;
+            spriteCtx.beginPath();
+            spriteCtx.arc(48, 48, 42, 0, Math.PI * 2);
+            spriteCtx.stroke();
+
+            // 断裂的铁链碎片
+            spriteCtx.strokeStyle = '#757575';
+            spriteCtx.lineWidth = 2;
+            // 左边断链
+            spriteCtx.beginPath();
+            spriteCtx.moveTo(5, 10);
+            spriteCtx.lineTo(15, 20);
+            spriteCtx.moveTo(12, 15);
+            spriteCtx.lineTo(8, 25);
+            spriteCtx.stroke();
+            // 右边断链
+            spriteCtx.beginPath();
+            spriteCtx.moveTo(85, 15);
+            spriteCtx.lineTo(78, 25);
+            spriteCtx.moveTo(80, 20);
+            spriteCtx.lineTo(88, 28);
+            spriteCtx.stroke();
+        }
+    }
+
     executeBossSpecial(special) {
         const enemy = this.currentEnemy;
         this.addBattleLog(special.message);
@@ -1568,6 +1852,13 @@ class Game {
                     enemy.currentHp = enemy.maxHp;
                     this.updateEnemyHpBar();
                     this.addBattleLog(`${enemy.name}完全恢复了！`);
+                    break;
+                case 'burn':
+                    if (!this.player.burning) {
+                        this.player.burning = true;
+                        this.player.burningTurns = 3;
+                        this.addBattleLog(`🔥 你被火焰灼伤了！接下来3回合将持续受到灼烧伤害！`);
+                    }
                     break;
                 case 'paralyze':
                     if (special.chance && Math.random() < special.chance) {
@@ -1695,12 +1986,28 @@ class Game {
     }
 
     endBattle(victory) {
+        const wasBossStairs = this.bossStairsActive && victory;
         this.state.inBattle = false;
         this.currentEnemy = null;
+
+        // 重置灼烧状态
+        this.player.burning = false;
+        this.player.burningTurns = 0;
+
+        const battleBox = document.getElementById('battle-box');
+        battleBox.classList.remove('boss-fire-phase', 'boss-rage-phase');
         document.getElementById('battle-overlay').classList.add('hidden');
         this.updatePlayerStats();
         // Restore context music
         this.playContextMusic();
+
+        // BOSS楼梯战斗胜利后进入下一层
+        if (wasBossStairs) {
+            this.bossStairsActive = false;
+            this.bossStairsData = null;
+            this.addMessage("⛓️ 铁链散落一地...前方的道路已经打开！", "system");
+            setTimeout(() => this.nextFloor(), 800);
+        }
     }
 
     // ==================== 商店系统 ====================
@@ -2509,16 +2816,58 @@ class Game {
             }
         }
 
+        // 绘制BOSS走廊铁链装饰
+        if (this.bossStairsActive && this.bossCorridorChains) {
+            for (const chain of this.bossCorridorChains) {
+                if (!this.explored[chain.y][chain.x]) continue;
+                const cx = chain.x * tileSize + offsetX;
+                const cy = chain.y * tileSize + offsetY;
+
+                // 铁链图标
+                ctx.font = `${tileSize - 12}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = 0.5 + 0.2 * Math.sin(Date.now() / 500);
+                ctx.fillText('⛓️', cx + tileSize / 2, cy + tileSize / 2);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
         // 绘制楼梯
         if (this.stairsPos && this.explored[this.stairsPos.y][this.stairsPos.x]) {
             const sx = this.stairsPos.x * tileSize + offsetX;
             const sy = this.stairsPos.y * tileSize + offsetY;
 
-            ctx.fillStyle = '#4ecdc4';
-            ctx.font = `${tileSize - 8}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('🚪', sx + tileSize / 2, sy + tileSize / 2);
+            if (this.bossStairsActive) {
+                // BOSS楼梯：带有红色/橙色发光效果和铁链
+                const time = Date.now() / 1000;
+                const glowSize = tileSize / 2 + 6 + Math.sin(time * 2) * 3;
+
+                // 脉动光环
+                const gradient = ctx.createRadialGradient(
+                    sx + tileSize / 2, sy + tileSize / 2, 0,
+                    sx + tileSize / 2, sy + tileSize / 2, glowSize
+                );
+                gradient.addColorStop(0, 'rgba(255, 87, 34, 0.5)');
+                gradient.addColorStop(0.5, 'rgba(255, 152, 0, 0.25)');
+                gradient.addColorStop(1, 'transparent');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(sx + tileSize / 2, sy + tileSize / 2, glowSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                // BOSS楼梯图标
+                ctx.font = `${tileSize - 6}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('⛓️', sx + tileSize / 2, sy + tileSize / 2);
+            } else {
+                ctx.fillStyle = '#4ecdc4';
+                ctx.font = `${tileSize - 8}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🚪', sx + tileSize / 2, sy + tileSize / 2);
+            }
         }
 
         // 绘制传送门
@@ -2681,7 +3030,7 @@ class Game {
 
         // 绘制楼梯
         if (this.stairsPos && this.explored[this.stairsPos.y][this.stairsPos.x]) {
-            ctx.fillStyle = '#4ecdc4';
+            ctx.fillStyle = this.bossStairsActive ? '#ff5722' : '#4ecdc4';
             ctx.fillRect(this.stairsPos.x * scale, this.stairsPos.y * scale, scale, scale);
         }
 
