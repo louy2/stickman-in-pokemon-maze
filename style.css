@@ -477,6 +477,84 @@ html {
     text-shadow: 0 0 10px #ffd700;
 }
 
+/* Boss Phase 2: Fire Awakening */
+#battle-box.boss-fire-phase {
+    border-color: #ff5722 !important;
+    box-shadow: 0 0 40px rgba(255, 87, 34, 0.7), inset 0 0 30px rgba(255, 87, 34, 0.2) !important;
+    animation: fireGlow 1.5s ease-in-out infinite !important;
+}
+
+@keyframes fireGlow {
+    0%, 100% {
+        box-shadow: 0 0 40px rgba(255, 87, 34, 0.7), inset 0 0 30px rgba(255, 87, 34, 0.2);
+        background: linear-gradient(180deg, #2a1a1a 0%, #1a1a2e 50%, #2a1510 100%);
+    }
+    50% {
+        box-shadow: 0 0 60px rgba(255, 152, 0, 0.8), inset 0 0 40px rgba(255, 87, 34, 0.3);
+        background: linear-gradient(180deg, #3a2010 0%, #1a1a2e 50%, #3a2015 100%);
+    }
+}
+
+#battle-box.boss-fire-phase #enemy-hp-fill {
+    background: linear-gradient(90deg, #ff5722 0%, #ff9800 50%, #ffc107 100%) !important;
+}
+
+#battle-box.boss-fire-phase #enemy-sprite-canvas {
+    border-color: #ff5722 !important;
+    box-shadow: 0 0 20px rgba(255, 87, 34, 0.7) !important;
+    animation: fireSprite 1s ease-in-out infinite;
+}
+
+@keyframes fireSprite {
+    0%, 100% { box-shadow: 0 0 20px rgba(255, 87, 34, 0.7); }
+    50% { box-shadow: 0 0 35px rgba(255, 152, 0, 0.9); }
+}
+
+/* Boss Phase 3: Chain Break Rage */
+#battle-box.boss-rage-phase {
+    border-color: #f44336 !important;
+    box-shadow: 0 0 50px rgba(244, 67, 54, 0.8), inset 0 0 30px rgba(244, 67, 54, 0.3) !important;
+    animation: rageGlow 0.8s ease-in-out infinite !important;
+}
+
+@keyframes rageGlow {
+    0%, 100% {
+        box-shadow: 0 0 50px rgba(244, 67, 54, 0.8), inset 0 0 30px rgba(244, 67, 54, 0.3);
+        transform: translate(0, 0);
+    }
+    25% {
+        transform: translate(-2px, 1px);
+    }
+    50% {
+        box-shadow: 0 0 70px rgba(255, 0, 0, 0.9), inset 0 0 40px rgba(244, 67, 54, 0.4);
+        transform: translate(2px, -1px);
+    }
+    75% {
+        transform: translate(-1px, -1px);
+    }
+}
+
+#battle-box.boss-rage-phase #enemy-hp-fill {
+    background: linear-gradient(90deg, #d32f2f 0%, #f44336 50%, #ff1744 100%) !important;
+    animation: ragePulse 0.5s ease-in-out infinite;
+}
+
+@keyframes ragePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+#battle-box.boss-rage-phase #enemy-sprite-canvas {
+    border-color: #f44336 !important;
+    box-shadow: 0 0 25px rgba(244, 67, 54, 0.8) !important;
+    animation: rageSprite 0.6s ease-in-out infinite;
+}
+
+@keyframes rageSprite {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
 /* Shop Overlay */
 #shop-box {
     background: linear-gradient(180deg, #2a4a2a 0%, #1a2e1a 100%);
